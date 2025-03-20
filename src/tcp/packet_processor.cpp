@@ -1,10 +1,14 @@
-#include "packet_processor.hpp"
+#include "tcp/packet_processor.hpp"
+#include "log/log_entries.hpp"
+#include "tcp/ip_tcp_header.hpp"
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <chrono>
 #include <iostream>
 
-PacketProcessor::PacketProcessor(ConsoleDisplay& display, LogRecorder& logger, int cleanup_interval_seconds)
-    : display_(display), logger_(logger), next_id_(1), running_(true), cleanup_interval_seconds_(cleanup_interval_seconds) {
+PacketProcessor::PacketProcessor(ConsoleDisplay& display, int cleanup_interval_seconds)
+    : display_(display), next_id_(1), running_(true), cleanup_interval_seconds_(cleanup_interval_seconds),
+      packet_log_("packets.log", true), state_log_("states.log", true) {
     cleanup_thread_ = std::thread(&PacketProcessor::cleanup_thread_func, this);
 }
 
@@ -13,6 +17,19 @@ PacketProcessor::~PacketProcessor() {
     if (cleanup_thread_.joinable()) {
         cleanup_thread_.join();
     }
+    flush_state_log();
+}
+
+void PacketProcessor::flush_state_log() {
+    state_log_.flush();
+}
+
+void PacketProcessor::truncate_packet_log() {
+    packet_log_.truncate();
+}
+
+void PacketProcessor::truncate_state_log() {
+    state_log_.truncate();
 }
 
 bool PacketProcessor::validate_packet(const struct pcap_pkthdr* header, const u_char* packet) {
@@ -42,24 +59,6 @@ void PacketProcessor::extract_packet_info(const u_char* packet, ConnectionKey& k
     key = ConnectionKey(src_ip, ntohs(tcp->th_sport), dst_ip, ntohs(tcp->th_dport));
 }
 
-bool PacketProcessor::is_client_packet(const tcpheader* tcp) {
-    return tcp && (tcp->th_flags & TH_SYN) && !(tcp->th_flags & TH_ACK);
-}
-
-void PacketProcessor::update_connection(Connection& conn, const tcpheader* tcp, std::chrono::steady_clock::time_point timestamp) {
-    if (is_client_packet(tcp)) {
-        conn.update_state_client(tcp->th_flags, timestamp);
-    } else if (tcp->th_flags & TH_SYN) {  // SYN-ACK from server
-        conn.update_state_server(tcp->th_flags, timestamp);
-    } else if (tcp->th_flags & TH_ACK && !(tcp->th_flags & (TH_SYN | TH_FIN | TH_RST))) {  // Pure ACK for handshake completion
-        if (conn.get_client_state() == tcp_state::syn_sent || conn.get_server_state() == tcp_state::syn_received) {
-            conn.update_state_client(tcp->th_flags, timestamp);  // Complete handshake
-        }
-    } else {
-        conn.update_state_server(tcp->th_flags, timestamp);  // Other server responses
-    }
-}
-
 void PacketProcessor::mark_for_cleanup(const ConnectionKey& key, const tcpheader* tcp, const Connection& conn) {
     if ((tcp->th_flags & (TH_FIN | TH_RST)) || 
         (conn.get_client_state() == tcp_state::closed && conn.get_server_state() == tcp_state::closed) ||
@@ -69,39 +68,53 @@ void PacketProcessor::mark_for_cleanup(const ConnectionKey& key, const tcpheader
     }
 }
 
-void PacketProcessor::process_tcp_packet(const struct pcap_pkthdr* header, const u_char* packet) {
+Connection& PacketProcessor::create_or_get_connection(const ConnectionKey& key, const tcpheader* tcp) {
+    std::unique_lock<std::mutex> lock(connections_mutex_);
+    if (!connections_.count(key)) {
+        auto conn = std::make_unique<Connection>(key, next_id_++);
+        latest_connections_.push_back(conn.get());
+        if (latest_connections_.size() > MAX_LATEST) {
+            latest_connections_.pop_front();
+        }
+        connections_[key] = std::move(conn);
+    }
+
+    bool is_initiate_flag = (tcp->th_flags & TH_SYN) && !(tcp->th_flags & TH_ACK);
+	if (is_initiate_flag && !connections_[key]->is_client_initiated()) {
+		connections_[key]->initiate_client(key.src_ip);
+	}
+
+    return *connections_[key];
+}
+
+void PacketProcessor::log_packet_and_state(const struct pcap_pkthdr* header, const ConnectionKey& key, const Connection& conn, const tcpheader* tcp, std::chrono::steady_clock::time_point timestamp, tcp_state prev_client_state, tcp_state prev_server_state) {
+    packet_log_.log(std::make_shared<PacketLogEntry>(header, key.src_ip.c_str(), key.dst_ip.c_str(), tcp));
+    // Only log state if it changed
+    if (conn.get_client_state() != prev_client_state || conn.get_server_state() != prev_server_state) {
+        state_log_.log(std::make_shared<StateLogEntry>(key, conn.get_current_state(timestamp), timestamp));
+    }
+}
+
+void PacketProcessor::handle_packet(const struct pcap_pkthdr* header, const u_char* packet) {
+    if (!validate_packet(header, packet)) return;
+
     const tcpheader* tcp = nullptr;
     ConnectionKey key;
     extract_packet_info(packet, key, tcp);
     if (!tcp || key.src_ip.empty() || key.dst_ip.empty()) return;
 
-    ConnectionKey normalized_key = key.normalized();
-    auto timestamp = std::chrono::steady_clock::now();
-
-    std::unique_lock<std::mutex> lock(connections_mutex_);
-    if (!connections_.count(normalized_key)) {
-        auto conn = std::make_unique<Connection>(normalized_key, next_id_++);
-        latest_connections_.push_back(conn.get());
-        if (latest_connections_.size() > MAX_LATEST) {
-            latest_connections_.pop_front();
-        }
-        connections_[normalized_key] = std::move(conn);
-    }
-
-    auto& conn = *connections_[normalized_key];
-    update_connection(conn, tcp, timestamp);
-    lock.unlock();
-
-    logger_.log_packet(header, key.src_ip.c_str(), key.dst_ip.c_str(), tcp);
-    logger_.log_state_transition(normalized_key, conn.get_current_state(timestamp), timestamp);
-    mark_for_cleanup(normalized_key, tcp, conn);
+    Connection& conn = create_or_get_connection(key, tcp);
+    
+	// Capture previous states before updating
+    tcp_state prev_client_state = conn.get_client_state();
+    tcp_state prev_server_state = conn.get_server_state();
+    
+    auto timestamp = std::chrono::steady_clock::now(); //todo
+    conn.update_state(key, tcp->th_flags);
+	log_packet_and_state(header, key, conn, tcp, timestamp, prev_client_state, prev_server_state);
+    mark_for_cleanup(key, tcp, conn);
 
     display_.update_connections(latest_connections_);
-}
-
-void PacketProcessor::handle_packet(const struct pcap_pkthdr* header, const u_char* packet) {
-    if (!validate_packet(header, packet)) return;
-    process_tcp_packet(header, packet);
 }
 
 void PacketProcessor::cleanup_marked_connections() {
@@ -118,13 +131,11 @@ void PacketProcessor::cleanup_marked_connections() {
     for (const auto& key : to_cleanup) {
         auto it = connections_.find(key);
         if (it != connections_.end() && it->second->should_clean_up()) {
-            logger_.log_cleanup(it->first);
-
+            connections_.erase(it);
             auto latest_it = std::find(latest_connections_.begin(), latest_connections_.end(), it->second.get());
             if (latest_it != latest_connections_.end()) {
                 latest_connections_.erase(latest_it);
             }
-            connections_.erase(it);
         }
     }
     display_.update_connections(latest_connections_);

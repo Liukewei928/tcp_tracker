@@ -12,8 +12,7 @@ enum class tcp_state {
     fin_wait_2,
     close_wait,
     last_ack,
-    time_wait,
-    closing
+    time_wait
 };
 
 std::string state_to_string(tcp_state state);

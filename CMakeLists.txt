@@ -1,23 +1,24 @@
 cmake_minimum_required(VERSION 3.10)
-project(tcp_state_tracker CXX)
+project(tcp_state_tracker)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_library(PCAP_LIBRARY pcap)
-if(NOT PCAP_LIBRARY)
-    message(FATAL_ERROR "libpcap not found")
-endif()
+find_library(PCAP_LIBRARY pcap REQUIRED)
 
-include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(include)
 
+add_subdirectory(src)
+add_subdirectory(src/tcp)
+add_subdirectory(src/log)
+add_subdirectory(src/console)
+
+# Create the executable using the main_module
 add_executable(tcp_state_tracker
-    src/main.cpp
-    src/connection.cpp
-    src/console_display.cpp
-    src/log_recorder.cpp
-    src/packet_processor.cpp
-    src/tcp_state.cpp
+    $<TARGET_OBJECTS:main_module>
 )
 
-target_link_libraries(tcp_state_tracker ${PCAP_LIBRARY})
+target_link_libraries(tcp_state_tracker
+    PRIVATE
+    main_module
+)

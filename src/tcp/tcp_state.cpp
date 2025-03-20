@@ -1,4 +1,4 @@
-#include "tcp_state.hpp"
+#include "tcp/tcp_state.hpp"
 
 std::string state_to_string(tcp_state state) {
     switch (state) {
@@ -11,7 +11,6 @@ std::string state_to_string(tcp_state state) {
         case tcp_state::close_wait: return "close_wait";
         case tcp_state::last_ack: return "last_ack";
         case tcp_state::time_wait: return "time_wait";
-        case tcp_state::closing: return "closing";
         default: return "unknown";
     }
 }

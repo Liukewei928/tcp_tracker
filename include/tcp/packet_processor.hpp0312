@@ -8,29 +8,36 @@
 #include <mutex>
 #include <atomic>
 #include <vector>
-#include "utils.hpp"
-#include "connection.hpp"
-#include "console_display.hpp"
-#include "log_recorder.hpp"
+#include "tcp/connection.hpp"
+#include "tcp/ip_tcp_header.hpp"  // Added for tcpheader definition
+#include "console/console_display.hpp"
+#include "log/log.hpp"
 
 class PacketProcessor {
 public:
-    PacketProcessor(ConsoleDisplay& display, LogRecorder& logger, int cleanup_interval_seconds = 5);
+    PacketProcessor(ConsoleDisplay& display, int cleanup_interval_seconds = 5);
     ~PacketProcessor();
     void handle_packet(const struct pcap_pkthdr* header, const u_char* packet);
+    void flush_state_log();
+    void truncate_packet_log();
+    void truncate_state_log();
 
 private:
     bool validate_packet(const struct pcap_pkthdr* header, const u_char* packet);
     void process_tcp_packet(const struct pcap_pkthdr* header, const u_char* packet);
-    void update_connection(Connection& conn, const tcpheader* tcp, std::chrono::steady_clock::time_point timestamp);
+    Connection& create_or_get_connection(const ConnectionKey& key, const tcpheader* tcp, bool is_client_packet, std::chrono::steady_clock::time_point timestamp);
+    void update_connection_state(Connection& conn, const tcpheader* tcp, bool is_client_packet, std::chrono::steady_clock::time_point timestamp);
+    void log_packet_and_state(const struct pcap_pkthdr* header, const ConnectionKey& key, const Connection& conn, const tcpheader* tcp, std::chrono::steady_clock::time_point timestamp, tcp_state prev_client_state, tcp_state prev_server_state);
+    void update_connection(Connection& conn, const tcpheader* tcp, bool is_client_packet, std::chrono::steady_clock::time_point timestamp);
     void mark_for_cleanup(const ConnectionKey& key, const tcpheader* tcp, const Connection& conn);
     void extract_packet_info(const u_char* packet, ConnectionKey& key, const tcpheader*& tcp);
-    bool is_client_packet(const tcpheader* tcp);
+    bool is_client_packet(const ConnectionKey& key, const tcpheader* tcp);
     void cleanup_marked_connections();
     void cleanup_thread_func();
 
     ConsoleDisplay& display_;
-    LogRecorder& logger_;
+    Log packet_log_;
+    Log state_log_;
     std::unordered_map<ConnectionKey, std::unique_ptr<Connection>> connections_;
     std::deque<Connection*> latest_connections_;
     std::vector<ConnectionKey> marked_for_cleanup_;
