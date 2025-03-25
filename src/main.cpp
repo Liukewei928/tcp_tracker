@@ -19,13 +19,15 @@ struct ProgramOptions {
     bool truncate_state_log = false;
     int debounce_seconds = 5;
     int cleanup_interval_seconds = 5;
+	std::string filter = "tcp";
 };
 
 void signal_handler(int signum) {
-    std::cout << "Received signal " << signum << ", flushing state log and exiting..." << std::endl;
-    if (processor_ptr) {
-        processor_ptr->flush_state_log();
-    }
+    std::cout << "Received signal " << signum << std::endl;
+	//  ", flushing state log and exiting..." << std::endl;
+    //if (processor_ptr) {
+    //    processor_ptr->flush_state_log();
+    //}
     running = false;
     if (pcap_handle) {
         pcap_breakloop(pcap_handle);  // Break the pcap_loop immediately
@@ -35,8 +37,16 @@ void signal_handler(int signum) {
 ProgramOptions parse_arguments(int argc, char* argv[]) {
     ProgramOptions options;
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "-s") == 0) options.state_log_mode = true;
-        else if (strcmp(argv[i], "-d") == 0) options.debug_mode = true;
+		if (strcmp(argv[i], "-f") == 0) {
+            if (i + 1 < argc) {
+                options.filter = argv[++i];  // Set filter to the next argument
+            } else {
+                std::cerr << "Error: -f requires a filter string." << std::endl;
+                exit(1);
+            }
+        }
+        //else if (strcmp(argv[i], "-s") == 0) options.state_log_mode = true;
+        //else if (strcmp(argv[i], "-d") == 0) options.debug_mode = true;
         else if (strcmp(argv[i], "-D") == 0) options.truncate_packet_log = true;
         else if (strcmp(argv[i], "-S") == 0) options.truncate_state_log = true;
         else if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) options.debounce_seconds = atoi(argv[++i]);
@@ -50,7 +60,7 @@ void setup_signal_handlers() {
     signal(SIGTERM, signal_handler); // Termination signal
 }
 
-pcap_t* initialize_pcap(char* errbuf) {
+pcap_t* initialize_pcap(const std::string& filter, char* errbuf) {
     pcap_t* handle = pcap_open_live("en1", BUFSIZ, 1, 1000, errbuf);
     if (!handle) {
         std::cerr << "Couldn't open device: " << errbuf << std::endl;
@@ -58,7 +68,7 @@ pcap_t* initialize_pcap(char* errbuf) {
     }
 
     struct bpf_program fp;
-    if (pcap_compile(handle, &fp, "tcp", 0, PCAP_NETMASK_UNKNOWN) == -1 ||
+    if (pcap_compile(handle, &fp, filter.c_str(), 0, PCAP_NETMASK_UNKNOWN) == -1 ||
         pcap_setfilter(handle, &fp) == -1) {
         std::cerr << "Couldn't install filter: " << pcap_geterr(handle) << std::endl;
         pcap_close(handle);
@@ -83,8 +93,9 @@ void apply_truncate_options(PacketProcessor& processor, const ProgramOptions& op
     }
     if (options.truncate_state_log) {
         std::cout << "Truncating states.log..." << std::endl;
-        processor.truncate_state_log();
-    }
+    	Log log("state.log", true);
+		log.truncate();
+	}
 }
 
 void run_packet_capture(pcap_t* handle, PacketProcessor& processor) {
@@ -100,7 +111,7 @@ int main(int argc, char* argv[]) {
     setup_signal_handlers();
 
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t* handle = initialize_pcap(errbuf);
+    pcap_t* handle = initialize_pcap(options.filter, errbuf);
     if (!handle) {
         return 1;
     }

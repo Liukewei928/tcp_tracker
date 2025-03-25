@@ -43,8 +43,8 @@ void Log::flush() {
 
     check_size_and_truncate();
 
-    std::sort(buffer_.begin(), buffer_.end(),
-              [](const auto& a, const auto& b) { return a.second < b.second; });
+//    std::sort(buffer_.begin(), buffer_.end(),
+//              [](const auto& a, const auto& b) { return a.second < b.second; });
 
     for (const auto& [entry, timestamp] : buffer_) {
         file_ << entry->format() << std::endl;

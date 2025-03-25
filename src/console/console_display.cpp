@@ -41,7 +41,7 @@ void ConsoleDisplay::print_table(const std::deque<Connection*>& connections) con
         std::cout << std::setw(ID_WIDTH) << conn->get_id()
                   << std::setw(ADDR_WIDTH) << (key.src_ip + ":" + std::to_string(key.src_port))
                   << std::setw(ADDR_WIDTH) << (key.dst_ip + ":" + std::to_string(key.dst_port))
-                  << std::setw(STATE_WIDTH) << std::left << conn->get_current_state(now) << "\n";
+                  << std::setw(STATE_WIDTH) << std::left << conn->get_state_change_info(now) << "\n";
         ++lines_printed;
     }
 

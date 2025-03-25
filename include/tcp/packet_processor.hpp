@@ -18,9 +18,7 @@ public:
     PacketProcessor(ConsoleDisplay& display, int cleanup_interval_seconds = 5);
     ~PacketProcessor();
     void handle_packet(const struct pcap_pkthdr* header, const u_char* packet);
-    void flush_state_log();
     void truncate_packet_log();
-    void truncate_state_log();
 
 private:
     bool validate_packet(const struct pcap_pkthdr* header, const u_char* packet);
@@ -33,7 +31,6 @@ private:
 
     ConsoleDisplay& display_;
     Log packet_log_;
-    Log state_log_;
     std::unordered_map<ConnectionKey, std::unique_ptr<Connection>> connections_;
     std::deque<Connection*> latest_connections_;
     std::vector<ConnectionKey> marked_for_cleanup_;
