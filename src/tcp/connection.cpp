@@ -1,6 +1,6 @@
 #include "tcp/connection.hpp"
 #include "tcp/ip_tcp_header.hpp"
-#include "log/log_entries.hpp"
+#include "log/state_log_entry.hpp"
 #include <netinet/tcp.h>
 #include <iostream>
 #include <iomanip>
@@ -11,16 +11,24 @@ ConnectionKey::ConnectionKey(const std::string& src_ip_, uint16_t src_port_, con
     : src_ip(src_ip_), src_port(src_port_), dst_ip(dst_ip_), dst_port(dst_port_) {
 }
 
-bool ConnectionKey::operator<(const ConnectionKey& other) const {
-    return (src_ip + std::to_string(src_port) + dst_ip + std::to_string(dst_port)) <
-           (other.src_ip + std::to_string(other.src_port) + other.dst_ip + std::to_string(other.dst_port));
+bool ConnectionKey::operator==(const ConnectionKey& other) const {
+    // Check if they match directly
+	bool direct_match = (src_ip == other.src_ip &&
+						 src_port == other.src_port &&
+						 dst_ip == other.dst_ip &&
+						 dst_port == other.dst_port);
+
+	// Check if they match in reverse
+	bool reverse_match = (src_ip == other.dst_ip &&
+						  src_port == other.dst_port &&
+						  dst_ip == other.src_ip &&
+						  dst_port == other.src_port);
+
+	return direct_match || reverse_match;
 }
 
-bool ConnectionKey::operator==(const ConnectionKey& other) const {
-    return (src_ip == other.src_ip && src_port == other.src_port &&
-           dst_ip == other.dst_ip && dst_port == other.dst_port) ||
-           (src_ip == other.dst_ip && src_port == other.dst_port &&
-           dst_ip == other.src_ip && dst_port == other.src_port);
+bool ConnectionKey::operator!=(const ConnectionKey& other) const {
+	return !(*this == other);
 }
 
 const ConnectionKey& ConnectionKey::operator!() const {
@@ -28,18 +36,19 @@ const ConnectionKey& ConnectionKey::operator!() const {
 	return std::move(key);
 }
 
-Connection::Connection(const ConnectionKey& key, int id)
-    : key_(key), id_(id), last_update_(std::chrono::steady_clock::now()), state_log_("states.log", true) {
+Connection::Connection(const ConnectionKey& key, int id, bool debug_mode)
+    : key_(key), id_(id), last_update_(std::chrono::steady_clock::now()), state_log_("state.log", debug_mode), debug_mode_(debug_mode) {
 }
 
-void Connection::truncate_state_log() {
-    state_log_.truncate();
+Connection::~Connection() {
+	state_log_.flush();
 }
 
 tcp_state Connection::determine_new_client_state(tcp_state current, uint8_t flags) {
 	if (flags & TH_RST) return tcp_state::closed;
     switch (current) {
-        case tcp_state::closed: break;
+        case tcp_state::closed: 
+			break;
         case tcp_state::syn_sent:
             if ((flags & TH_SYN) && (flags & TH_ACK)) return tcp_state::established;
             break;
@@ -83,13 +92,14 @@ tcp_state Connection::determine_new_server_state(tcp_state current, uint8_t flag
 }
 
 void Connection::update_client_state(uint8_t flags) {
-    tcp_state new_state = determine_new_client_state(client_state_.state, flags);
-    if (new_state != client_state_.state) {
+	tcp_state new_state = determine_new_client_state(client_state_.state, flags);
+    printf("old:%d,new:%d\n",client_state_.state, new_state);
+	if (new_state != client_state_.state) {
 		auto timestamp = std::chrono::steady_clock::now();
 		client_state_.prev_state = client_state_.state;
 		client_state_.state = new_state;
-        state_log_.log(std::make_shared<StateLogEntry>(key_, get_state_change_info(timestamp), timestamp));
-
+        state_log_.log(std::make_shared<StateLogEntry>(key_, get_state_change_info(timestamp)));
+		
 		client_state_.state = new_state;
         client_state_.start_time = timestamp;
         last_update_ = timestamp;
@@ -102,7 +112,7 @@ void Connection::update_server_state(uint8_t flags) {
         auto timestamp = std::chrono::steady_clock::now();
 		server_state_.prev_state = server_state_.state;
         server_state_.state = new_state;
-        state_log_.log(std::make_shared<StateLogEntry>(!key_, get_state_change_info(timestamp), timestamp));
+        state_log_.log(std::make_shared<StateLogEntry>(!key_, get_state_change_info(timestamp)));
 
         server_state_.start_time = timestamp;
         last_update_ = timestamp;

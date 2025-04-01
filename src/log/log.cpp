@@ -25,7 +25,7 @@ void Log::log(const std::shared_ptr<LogEntry>& entry) {
     if (!enabled_ || !file_.is_open()) return;
 
     std::lock_guard<std::mutex> lock(mutex_);
-    buffer_.emplace_back(entry, entry->timestamp());
+    buffer_.emplace_back(entry);
     update_count_++;
 
     auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(
@@ -39,16 +39,14 @@ void Log::log(const std::shared_ptr<LogEntry>& entry) {
 
 void Log::flush() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (buffer_.empty()) return;
+    if (!file_.is_open() || buffer_.empty()) return;
 
     check_size_and_truncate();
 
-//    std::sort(buffer_.begin(), buffer_.end(),
-//              [](const auto& a, const auto& b) { return a.second < b.second; });
-
-    for (const auto& [entry, timestamp] : buffer_) {
+    for (const auto& entry : buffer_) {
         file_ << entry->format() << std::endl;
     }
+	
     file_.flush();
     buffer_.clear();
 }

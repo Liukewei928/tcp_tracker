@@ -15,29 +15,41 @@ struct ConnectionKey {
 
     ConnectionKey() : src_ip(""), src_port(0), dst_ip(""), dst_port(0) {}
     ConnectionKey(const std::string& src_ip_, uint16_t src_port_, const std::string& dst_ip_, uint16_t dst_port_);
-    bool operator<(const ConnectionKey& other) const;
     bool operator==(const ConnectionKey& other) const;
+    bool operator!=(const ConnectionKey& other) const;
 	const ConnectionKey& operator!() const;
 };
 
-// Hash specialization for ConnectionKey
+// --- Hash Specialization for ConnectionKey (Bi-directional aware) ---
 namespace std {
     template<>
     struct hash<ConnectionKey> {
         std::size_t operator()(const ConnectionKey& key) const {
-            std::size_t h1 = std::hash<std::string>{}(key.src_ip);
-            std::size_t h2 = std::hash<uint16_t>{}(key.src_port);
-            std::size_t h3 = std::hash<std::string>{}(key.dst_ip);
-            std::size_t h4 = std::hash<uint16_t>{}(key.dst_port);
-            // Combine hashes (simple but effective method)
-            return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3);
-        }
-    };
+            // Combine hashes in a way that is order-independent for the two endpoints.
+            // Method: Hash each endpoint (IP+Port) pair separately, then combine using XOR.
+            // XOR is commutative (a ^ b == b ^ a), ensuring order independence.
+
+            std::hash<std::string> string_hasher;
+            std::hash<uint16_t> port_hasher;
+
+            // Hash endpoint 1 (src)
+            // Combine ip and port hash - using a simple shift/XOR combo
+            std::size_t src_hash = string_hasher(key.src_ip) ^ (port_hasher(key.src_port) << 1);
+
+            // Hash endpoint 2 (dst)
+            std::size_t dst_hash = string_hasher(key.dst_ip) ^ (port_hasher(key.dst_port) << 1);
+
+            // Combine the two endpoint hashes using XOR.
+            // The order of src_hash and dst_hash doesn't matter due to XOR.
+        	return src_hash ^ dst_hash;
+		}
+	};
 }
 
 class Connection {
 public:
-    Connection(const ConnectionKey& key, int id);
+    Connection(const ConnectionKey& key, int id, bool debug_mode = false);
+	~Connection();
 
     void update_client_state(uint8_t flags);
     void update_server_state(uint8_t flags);
@@ -50,8 +62,6 @@ public:
 
     const ConnectionKey& get_key() const { return key_; }
     int get_id() const { return id_; }
-
-    void truncate_state_log();
 
 private:
 	tcp_state determine_new_client_state(tcp_state current, uint8_t flags);
@@ -71,6 +81,7 @@ private:
     std::chrono::steady_clock::time_point last_update_;
     
     Log state_log_;
+	bool debug_mode_;
 };
 
 #endif // CONNECTION_HPP

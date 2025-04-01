@@ -1,7 +1,9 @@
 # Define the Log module library
 add_library(log_module
     log.cpp
-    log_entries.cpp
+    log_entry.cpp
+	packet_log_entry.cpp
+	state_log_entry.cpp
 )
 
 # Specify include directories for this module

@@ -1,14 +1,14 @@
 #include "tcp/packet_processor.hpp"
-#include "log/log_entries.hpp"
+#include "log/packet_log_entry.hpp"
 #include "tcp/ip_tcp_header.hpp"
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <chrono>
 #include <iostream>
 
-PacketProcessor::PacketProcessor(ConsoleDisplay& display, int cleanup_interval_seconds)
+PacketProcessor::PacketProcessor(ConsoleDisplay& display, int cleanup_interval_seconds, bool debug_mode)
     : display_(display), next_id_(1), running_(true), cleanup_interval_seconds_(cleanup_interval_seconds),
- packet_log_("packets.log", true) {
+ packet_log_("packet.log", debug_mode), debug_mode_(debug_mode) {
     cleanup_thread_ = std::thread(&PacketProcessor::cleanup_thread_func, this);
 }
 
@@ -17,10 +17,7 @@ PacketProcessor::~PacketProcessor() {
     if (cleanup_thread_.joinable()) {
         cleanup_thread_.join();
     }
-}
-
-void PacketProcessor::truncate_packet_log() {
-    packet_log_.truncate();
+	packet_log_.flush();
 }
 
 bool PacketProcessor::validate_packet(const struct pcap_pkthdr* header, const u_char* packet) {
@@ -71,7 +68,7 @@ Connection& PacketProcessor::create_or_get_connection(const ConnectionKey& key, 
 			return *std::move(conn);
 		}       
 
-		auto conn = std::make_unique<Connection>(key, next_id_++);
+		auto conn = std::make_unique<Connection>(key, next_id_++, debug_mode_);
         latest_connections_.push_back(conn.get());
         if (latest_connections_.size() > MAX_LATEST) {
             latest_connections_.pop_front();
@@ -89,13 +86,13 @@ void PacketProcessor::handle_packet(const struct pcap_pkthdr* header, const u_ch
     ConnectionKey key;
     extract_packet_info(packet, key, tcp);
     if (!tcp || key.src_ip.empty() || key.dst_ip.empty()) return;
-
-    packet_log_.log(std::make_shared<PacketLogEntry>(header, key.src_ip.c_str(), key.dst_ip.c_str(), tcp));
-
+	
+    packet_log_.log(std::make_shared<PacketLogEntry>(key.src_ip.c_str(), key.dst_ip.c_str(), tcp));
     Connection& conn = create_or_get_connection(key, tcp);
-	if (conn.is_from_client(key.src_ip))
+	bool is_from_client = conn.is_from_client(key.src_ip);
+	if (is_from_client)
     	conn.update_client_state(tcp->th_flags);
-	if (!conn.is_from_client(key.src_ip) && conn.get_key().src_ip != "")
+	if (!is_from_client && conn.get_key().src_ip != "")
     	conn.update_server_state(tcp->th_flags);
 
     mark_for_cleanup(key, tcp, conn);

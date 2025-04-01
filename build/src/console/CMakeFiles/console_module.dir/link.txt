@@ -1,0 +1,2 @@
+/Users/danny/k/apps/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc libconsole_module.a CMakeFiles/console_module.dir/console_display.cpp.o
+/Users/danny/k/apps/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib libconsole_module.a

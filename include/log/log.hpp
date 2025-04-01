@@ -1,19 +1,13 @@
 #ifndef LOG_HPP
 #define LOG_HPP
 
+#include "log/log_entry.hpp"
 #include <string>
 #include <fstream>
 #include <vector>
 #include <chrono>
 #include <memory>
 #include <mutex>
-
-class LogEntry {
-public:
-    virtual ~LogEntry() = default;
-    virtual std::string format() const = 0;
-    virtual std::chrono::system_clock::time_point timestamp() const = 0;
-};
 
 struct FlushPolicy {
     int max_updates = 1000;  // Flush after N updates
@@ -36,7 +30,7 @@ private:
     bool enabled_;
     FlushPolicy policy_;
     std::ofstream file_;
-    std::vector<std::pair<std::shared_ptr<LogEntry>, std::chrono::system_clock::time_point>> buffer_;
+    std::vector<std::shared_ptr<LogEntry>> buffer_;
     int update_count_;
     std::chrono::steady_clock::time_point last_flush_time_;
     std::mutex mutex_;

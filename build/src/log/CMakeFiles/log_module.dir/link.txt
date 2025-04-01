@@ -1,0 +1,2 @@
+/Users/danny/k/apps/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc liblog_module.a CMakeFiles/log_module.dir/log.cpp.o CMakeFiles/log_module.dir/log_entry.cpp.o CMakeFiles/log_module.dir/packet_log_entry.cpp.o CMakeFiles/log_module.dir/state_log_entry.cpp.o
+/Users/danny/k/apps/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib liblog_module.a
