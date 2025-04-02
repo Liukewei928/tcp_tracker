@@ -2,7 +2,6 @@
 add_library(tcp_module
     connection.cpp
     packet_processor.cpp
-	tcp_state.cpp
 )
 
 # Specify include directories for this module
