@@ -40,6 +40,7 @@ ConnectionKey ConnectionKey::operator!() const {
 
 Connection::Connection(const ConnectionKey& key, int id, bool debug_mode)
     : key_(key), id_(id), last_update_(std::chrono::steady_clock::now()), state_log_("state.log", debug_mode), debug_mode_(debug_mode) {
+	last_update_ = std::chrono::steady_clock::now();
     // Client starts by initiating connection -> SYN_SENT
     // Server starts by listening -> LISTEN
     client_state_.state = tcp_state::syn_sent; // More accurate starting point if created on first SYN
@@ -48,15 +49,34 @@ Connection::Connection(const ConnectionKey& key, int id, bool debug_mode)
     server_state_.start_time = last_update_;
     client_state_.prev_state = tcp_state::closed; // Indicate transition from non-existence
     server_state_.prev_state = tcp_state::closed; // Indicate transition from non-existence
+
+    // Log initial state
+    std::string initial_info = "Initial State: cli:" + state_to_string(client_state_.state) +
+                               " srv:" + state_to_string(server_state_.state);
+    state_log_.log(std::make_shared<StateLogEntry>(key_, initial_info));
 }
 
 Connection::~Connection() {
     state_log_.flush(); // Ensure logs are written on destruction
 }
 
-// Determines the NEXT state for the CLIENT based on a packet RECEIVED FROM SERVER
-// (Uses the more complete logic from previous discussions)
-tcp_state Connection::determine_new_client_state(tcp_state current, uint8_t flags) {
+#include <sstream> // Make sure this is included
+
+// Helper to convert flags to string for logging
+std::string flags_to_string(uint8_t flags) {
+    std::string s = "";
+    if (flags & TH_SYN) s += "S";
+    if (flags & TH_ACK) s += "A";
+    if (flags & TH_FIN) s += "F";
+    if (flags & TH_RST) s += "R";
+    if (flags & TH_PUSH) s += "P";
+    if (flags & TH_URG) s += "U";
+    if (s.empty()) s = "-";
+    return s;
+}
+
+
+tcp_state client_state_machine(tcp_state current, uint8_t flags) {
     if (flags & TH_RST) return tcp_state::closed;
     switch (current) {
         case tcp_state::closed: break; // No transition based on received packets
@@ -89,14 +109,34 @@ tcp_state Connection::determine_new_client_state(tcp_state current, uint8_t flag
             break;
         case tcp_state::time_wait: break; // Stays in TIME_WAIT until timeout
         default: break;
-    }
-    return current;
+	}
+	return current;
 }
 
-// Determines the NEXT state for the SERVER based on a packet RECEIVED FROM CLIENT
-// (Uses the more complete logic from previous discussions)
-tcp_state Connection::determine_new_server_state(tcp_state current, uint8_t flags) {
-	if (flags & TH_RST) return tcp_state::closed;
+
+// --- Add Verbose Logging INSIDE the state determination functions ---
+tcp_state Connection::determine_new_client_state(tcp_state current, uint8_t flags) {    
+	if (debug_mode_) { // Only log if debug enabled
+        std::cout << "[DEBUG C] Current: " << state_to_string(current)
+                  << ", Rcvd Flags: " << flags_to_string(flags) << " (" << static_cast<int>(flags) << ")" << std::endl;
+    }
+
+    tcp_state determined_state = client_state_machine(current, flags);
+ 	
+	// Calculate the state first
+     if (debug_mode_) {
+        if (determined_state != current) {
+             std::cout << "[DEBUG C] Determined transition: " << state_to_string(current) << " -> " << state_to_string(determined_state) << std::endl;
+        } else {
+             std::cout << "[DEBUG C] No state change determined." << std::endl;
+        }
+     }
+    return determined_state;
+}
+
+
+tcp_state server_state_machine(tcp_state current, uint8_t flags) {
+    if (flags & TH_RST) return tcp_state::closed;
     switch (current) {
         case tcp_state::closed: break; // Should start in LISTEN
         case tcp_state::listen:
@@ -131,55 +171,75 @@ tcp_state Connection::determine_new_server_state(tcp_state current, uint8_t flag
     return current;
 }
 
-void Connection::update_client_state(uint8_t flags) {
-    tcp_state current_state = client_state_.state;
-	tcp_state new_state = determine_new_client_state(current_state, flags);
 
-	if (new_state != current_state) {
-		auto timestamp = std::chrono::steady_clock::now();
-		client_state_.prev_state = current_state;
-		client_state_.state = new_state; // Update state *before* logging potentially reads it
+// --- Add similar verbose logging inside determine_new_server_state ---
+tcp_state Connection::determine_new_server_state(tcp_state current, uint8_t flags) {
+     if (debug_mode_) {
+        std::cout << "[DEBUG S] Current: " << state_to_string(current)
+                  << ", Rcvd Flags: " << flags_to_string(flags) << " (" << static_cast<int>(flags) << ")" << std::endl;
+     }
 
-        // Log the state change - key_ represents client->server perspective
-        state_log_.log(std::make_shared<StateLogEntry>(key_, get_state_change_info(timestamp)));
+     tcp_state determined_state = server_state_machine(current, flags);
 
-        // Update timestamps
-        client_state_.start_time = timestamp;
-        last_update_ = timestamp;
-
-        // Handle entering TIME_WAIT specifically
-        if (new_state == tcp_state::time_wait) {
-            client_state_.time_wait_entry_time = timestamp;
+     if (debug_mode_) {
+        if (determined_state != current) {
+             std::cout << "[DEBUG S] Determined transition: " << state_to_string(current) << " -> " << state_to_string(determined_state) << std::endl;
         } else {
-            client_state_.time_wait_entry_time.reset(); // Clear if leaving TIME_WAIT (e.g. via RST)
+             std::cout << "[DEBUG S] No state change determined." << std::endl;
         }
-    }
+     }
+    return determined_state;
 }
 
-void Connection::update_server_state(uint8_t flags) {
-    tcp_state current_state = server_state_.state;
-    tcp_state new_state = determine_new_server_state(current_state, flags);
+
+// --- Adjust State Update Logging (as before, ensure correct key) ---
+void Connection::update_client_state(uint8_t flags) {
+    tcp_state current_state = client_state_.state;
+    tcp_state new_state = determine_new_client_state(current_state, flags);
 
     if (new_state != current_state) {
         auto timestamp = std::chrono::steady_clock::now();
-		server_state_.prev_state = current_state;
-        server_state_.state = new_state; // Update state *before* logging potentially reads it
+        // Log shows transition *before* updating state member
+        std::string change_info = "Trigger: S->C flags(" + flags_to_string(flags) + ") | " + // Show trigger
+                                  "cli: " + state_to_string(current_state) + " -> " + state_to_string(new_state) +
+                                  " | srv_ctx: " + state_to_string(server_state_.state);
+        state_log_.log(std::make_shared<StateLogEntry>(!key_, change_info)); // Use !key_
 
-        // Log the state change - !key_ represents server->client perspective trigger
-        state_log_.log(std::make_shared<StateLogEntry>(!key_, get_state_change_info(timestamp)));
-
-        // Update timestamps
-        server_state_.start_time = timestamp;
+        // Update state members AFTER logging
+        client_state_.prev_state = current_state;
+        client_state_.state = new_state;
+        client_state_.start_time = timestamp;
         last_update_ = timestamp;
-
-        // Handle entering TIME_WAIT specifically
-        if (new_state == tcp_state::time_wait) {
-            server_state_.time_wait_entry_time = timestamp;
-        } else {
-            server_state_.time_wait_entry_time.reset(); // Clear if leaving TIME_WAIT (e.g. via RST)
-        }
+        // ... (time_wait logic) ...
+    } else {
+        last_update_ = std::chrono::steady_clock::now();
     }
 }
+
+// --- Adjust update_server_state similarly ---
+void Connection::update_server_state(uint8_t flags) {
+     tcp_state current_state = server_state_.state;
+     tcp_state new_state = determine_new_server_state(current_state, flags);
+
+     if (new_state != current_state) {
+        auto timestamp = std::chrono::steady_clock::now();
+        // Log shows transition *before* updating state member
+        std::string change_info = "Trigger: C->S flags(" + flags_to_string(flags) + ") | " + // Show trigger
+                                  "srv: " + state_to_string(current_state) + " -> " + state_to_string(new_state) +
+                                  " | cli_ctx: " + state_to_string(client_state_.state);
+        state_log_.log(std::make_shared<StateLogEntry>(key_, change_info)); // Use key_
+
+        // Update state members AFTER logging
+        server_state_.prev_state = current_state;
+        server_state_.state = new_state;
+        server_state_.start_time = timestamp;
+        last_update_ = timestamp;
+        // ... (time_wait logic) ...
+     } else {
+        last_update_ = std::chrono::steady_clock::now();
+     }
+}
+
 
 // Checks if the packet source IP matches the client IP stored in the key
 bool Connection::is_from_client(const std::string& pkt_src_ip) const {

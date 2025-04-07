@@ -89,11 +89,14 @@ void PacketProcessor::handle_packet(const struct pcap_pkthdr* header, const u_ch
 	
     packet_log_.log(std::make_shared<PacketLogEntry>(key.src_ip.c_str(), key.dst_ip.c_str(), tcp));
     Connection& conn = create_or_get_connection(key, tcp);
+
+	if (conn.get_key().src_ip.empty()) return;
+
 	bool is_from_client = conn.is_from_client(key.src_ip);
 	if (is_from_client)
-    	conn.update_client_state(tcp->th_flags);
-	if (!is_from_client && conn.get_key().src_ip != "")
     	conn.update_server_state(tcp->th_flags);
+    else
+		conn.update_client_state(tcp->th_flags);
 
     mark_for_cleanup(key, tcp, conn);
 
