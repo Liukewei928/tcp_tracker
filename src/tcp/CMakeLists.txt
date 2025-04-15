@@ -3,6 +3,7 @@ add_library(tcp_module
     connection_key.cpp
     connection.cpp
     packet_processor.cpp
+    reassembly.cpp
 )
 
 # Specify include directories for this module
