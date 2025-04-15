@@ -1,51 +1,11 @@
 #ifndef CONNECTION_HPP
 #define CONNECTION_HPP
 
-#include "tcp/tcp_state.hpp"
+#include "tcp/connection_key.hpp"
+#include "tcp_def/tcp_state.hpp"
 #include "log/log.hpp"
 #include <string>
 #include <chrono>
-#include <functional>  // For std::hash
-#include <optional>
-
-struct ConnectionKey {
-    std::string src_ip;
-    uint16_t src_port;
-    std::string dst_ip;
-    uint16_t dst_port;
-
-    ConnectionKey() : src_ip(""), src_port(0), dst_ip(""), dst_port(0) {}
-    ConnectionKey(const std::string& src_ip_, uint16_t src_port_, const std::string& dst_ip_, uint16_t dst_port_);
-    bool operator==(const ConnectionKey& other) const;
-    bool operator!=(const ConnectionKey& other) const;
-	ConnectionKey operator!() const;
-};
-
-// --- Hash Specialization for ConnectionKey (Bi-directional aware) ---
-namespace std {
-    template<>
-    struct hash<ConnectionKey> {
-        std::size_t operator()(const ConnectionKey& key) const {
-            // Combine hashes in a way that is order-independent for the two endpoints.
-            // Method: Hash each endpoint (IP+Port) pair separately, then combine using XOR.
-            // XOR is commutative (a ^ b == b ^ a), ensuring order independence.
-
-            std::hash<std::string> string_hasher;
-            std::hash<uint16_t> port_hasher;
-
-            // Hash endpoint 1 (src)
-            // Combine ip and port hash - using a simple shift/XOR combo
-            std::size_t src_hash = string_hasher(key.src_ip) ^ (port_hasher(key.src_port) << 1);
-
-            // Hash endpoint 2 (dst)
-            std::size_t dst_hash = string_hasher(key.dst_ip) ^ (port_hasher(key.dst_port) << 1);
-
-            // Combine the two endpoint hashes using XOR.
-            // The order of src_hash and dst_hash doesn't matter due to XOR.
-        	return src_hash ^ dst_hash;
-		}
-	};
-}
 
 class Connection {
 public:

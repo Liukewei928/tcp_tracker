@@ -1,42 +1,10 @@
 #include "tcp/connection.hpp"
-#include "tcp/ip_tcp_header.hpp"
+#include "tcp_def/ip_tcp_header.hpp"
 #include "log/state_log_entry.hpp"
 #include <iostream>
 #include <iomanip>
 #include <chrono>
 #include <sstream>
-
-// --- ConnectionKey Implementation ---
-
-ConnectionKey::ConnectionKey(const std::string& src_ip_, uint16_t src_port_, const std::string& dst_ip_, uint16_t dst_port_)
-    : src_ip(src_ip_), src_port(src_port_), dst_ip(dst_ip_), dst_port(dst_port_) {
-}
-
-// Comparison operator: checks direct and reverse match
-bool ConnectionKey::operator==(const ConnectionKey& other) const {
-    bool direct_match = (src_ip == other.src_ip &&
-                         src_port == other.src_port &&
-                         dst_ip == other.dst_ip &&
-                         dst_port == other.dst_port);
-
-    bool reverse_match = (src_ip == other.dst_ip &&
-                          src_port == other.dst_port &&
-                          dst_ip == other.src_ip &&
-                          dst_port == other.src_port);
-
-    return direct_match || reverse_match;
-}
-
-bool ConnectionKey::operator!=(const ConnectionKey& other) const {
-    return !(*this == other);
-}
-
-// Returns a key representing the opposite direction (by value)
-ConnectionKey ConnectionKey::operator!() const {
-    return ConnectionKey(this->dst_ip, this->dst_port, this->src_ip, this->src_port);
-}
-
-// --- Connection Implementation ---
 
 Connection::Connection(const ConnectionKey& key, int id, bool debug_mode)
     : key_(key), id_(id), last_update_(std::chrono::steady_clock::now()), state_log_("state.log", debug_mode), debug_mode_(debug_mode) {
@@ -59,8 +27,6 @@ Connection::Connection(const ConnectionKey& key, int id, bool debug_mode)
 Connection::~Connection() {
     state_log_.flush(); // Ensure logs are written on destruction
 }
-
-#include <sstream> // Make sure this is included
 
 // Helper to convert flags to string for logging
 std::string flags_to_string(uint8_t flags) {

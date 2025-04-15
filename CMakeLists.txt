@@ -12,6 +12,7 @@ add_subdirectory(src)
 add_subdirectory(src/tcp)
 add_subdirectory(src/log)
 add_subdirectory(src/console)
+add_subdirectory(src/misc)
 
 # Create the executable using the main_module
 add_executable(tcp_state_tracker

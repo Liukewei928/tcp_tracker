@@ -1,5 +1,6 @@
 # Define the TCP module library
 add_library(tcp_module
+    connection_key.cpp
     connection.cpp
     packet_processor.cpp
 )

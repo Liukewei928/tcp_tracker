@@ -13,6 +13,7 @@ target_link_libraries(main_module
     PUBLIC
     tcp_module
     log_module
+    misc_module
     console_module
     ${PCAP_LIBRARY}
 )

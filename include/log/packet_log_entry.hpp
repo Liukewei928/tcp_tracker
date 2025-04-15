@@ -2,16 +2,15 @@
 #define PACKET_LOG_ENTRY_HPP
 
 #include "log/log_entry.hpp"
-#include "tcp/ip_tcp_header.hpp"
+#include "tcp_def/ip_tcp_header.hpp"
+#include "tcp/connection_key.hpp"
 
 class PacketLogEntry : public LogEntry {
 public:
-    PacketLogEntry(const char* src_ip, const char* dst_ip, const tcpheader* tcp);
+    PacketLogEntry(const ConnectionKey& key, const tcpheader* tcp);
     std::string format() const override;
 
 private:
-    std::string src_ip_;
-    std::string dst_ip_;
     const tcpheader* tcp_;
 };
 

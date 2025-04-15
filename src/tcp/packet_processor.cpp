@@ -1,6 +1,5 @@
 #include "tcp/packet_processor.hpp"
 #include "log/packet_log_entry.hpp"
-#include "tcp/ip_tcp_header.hpp"
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <chrono>
@@ -87,7 +86,7 @@ void PacketProcessor::handle_packet(const struct pcap_pkthdr* header, const u_ch
     extract_packet_info(packet, key, tcp);
     if (!tcp || key.src_ip.empty() || key.dst_ip.empty()) return;
 	
-    packet_log_.log(std::make_shared<PacketLogEntry>(key.src_ip.c_str(), key.dst_ip.c_str(), tcp));
+    packet_log_.log(std::make_shared<PacketLogEntry>(key, tcp));
     Connection& conn = create_or_get_connection(key, tcp);
 
 	if (conn.get_key().src_ip.empty()) return;

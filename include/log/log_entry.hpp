@@ -1,44 +1,26 @@
 #ifndef LOG_ENTRY_HPP
 #define LOG_ENTRY_HPP
 
+#include "tcp/connection_key.hpp"
 #include <sstream>
 #include <string>
 #include <chrono>
-#include <ctime>
-
-class UTCOffset {
-public:
-    static UTCOffset* get_instance() {
-        if (!instance_)
-            instance_ = new UTCOffset();
-        return instance_;
-    }
-
-    int get_offset() const { return offset_; }
-
-private:
-    static UTCOffset* instance_;
-    int offset_;  // Offset in hours
-    UTCOffset() {
-        time_t now = time(nullptr);
-        struct tm* gmTime = gmtime(&now);
-        struct tm* localTime = localtime(&now);
-        offset_ = difftime(mktime(localTime), mktime(gmTime)) / 3600;
-    }
-};
 
 class LogEntry {
 public:
-	LogEntry();
+    LogEntry();
+	LogEntry(const ConnectionKey& key);
 	virtual ~LogEntry() = default;
     virtual std::string format() const = 0;
 
 protected:
 	std::string get_timestamp() const;
-
+    std::string get_direction() const;
+    
 private:
 	int utc_offset_ {0};	
     std::chrono::system_clock::time_point timestamp_;
+    const ConnectionKey key_;
 };
 
 #endif // LOG_ENTRY_HPP

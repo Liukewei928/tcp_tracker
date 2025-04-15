@@ -10,7 +10,6 @@ public:
     std::string format() const override;
 
 private:
-    ConnectionKey key_;
     std::string state_;
 };
 
