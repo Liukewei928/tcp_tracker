@@ -1,2 +1,0 @@
-/Users/danny/k/apps/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc libtcp_module.a CMakeFiles/tcp_module.dir/connection.cpp.o CMakeFiles/tcp_module.dir/packet_processor.cpp.o CMakeFiles/tcp_module.dir/tcp_state.cpp.o
-/Users/danny/k/apps/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib libtcp_module.a

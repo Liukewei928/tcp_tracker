@@ -1,2 +1,0 @@
-/Users/danny/k/apps/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar qc libmain_module.a CMakeFiles/main_module.dir/main.cpp.o
-/Users/danny/k/apps/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib libmain_module.a
