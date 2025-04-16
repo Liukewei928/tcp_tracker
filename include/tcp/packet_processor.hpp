@@ -27,6 +27,9 @@ private:
     void extract_packet_info(const u_char* packet, ConnectionKey& key, const tcpheader*& tcp);
     void cleanup_marked_connections();
     void cleanup_thread_func();
+    
+    // New method to handle payload processing
+    void process_payload(Connection& conn, const u_char* packet, const tcpheader* tcp, bool is_from_client);
 
     static constexpr size_t MAX_LATEST = 10;
 

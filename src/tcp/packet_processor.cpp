@@ -59,15 +59,30 @@ void PacketProcessor::mark_for_cleanup(const ConnectionKey& key, const tcpheader
 Connection& PacketProcessor::create_or_get_connection(const ConnectionKey& key, const tcpheader* tcp) {
     std::unique_lock<std::mutex> lock(connections_mutex_);
     if (!connections_.count(key)) {
+        bool init_flag = (tcp->th_flags & TH_SYN) && !(tcp->th_flags & TH_ACK);
+        if (!init_flag) {
+            ConnectionKey empty_key;
+            auto conn = std::make_unique<Connection>(empty_key, 0);
+            return *std::move(conn);
+        }       
 
-    	bool init_flag = (tcp->th_flags & TH_SYN) && !(tcp->th_flags & TH_ACK);
-		if (!init_flag) {
-			ConnectionKey empty_key;
-			auto conn = std::make_unique<Connection>(empty_key, 0);
-			return *std::move(conn);
-		}       
+        // Create data callback for reassembly
+        auto data_callback = [this](ReassemblyDirection dir, const uint8_t* data, size_t len) {
+            // Here you can implement what to do with reassembled data
+            // For example, log it, process it, or forward it
+            if (debug_mode_) {
+                std::cout << "Reassembled " << len << " bytes from " 
+                          << (dir == ReassemblyDirection::CLIENT_TO_SERVER ? "client->server" : "server->client")
+                          << std::endl;
+                if (data != nullptr)
+                {
+                    std::cerr << "Payload as string: \"" << std::string(reinterpret_cast<const char*>(data), len) 
+                        << "\"" << std::endl;
+                }
+            }
+        };
 
-		auto conn = std::make_unique<Connection>(key, next_id_++, debug_mode_);
+        auto conn = std::make_unique<Connection>(key, next_id_++, debug_mode_, data_callback);
         latest_connections_.push_back(conn.get());
         if (latest_connections_.size() > MAX_LATEST) {
             latest_connections_.pop_front();
@@ -76,6 +91,20 @@ Connection& PacketProcessor::create_or_get_connection(const ConnectionKey& key, 
     }
 
     return *connections_[key];
+}
+
+void PacketProcessor::process_payload(Connection& conn, const u_char* packet, const tcpheader* tcp, bool is_from_client) {
+    // Extract payload information
+    const auto* ip = reinterpret_cast<const ipheader*>(packet + 14);
+    int ip_header_len = ip->iph_ihl * 4;
+    int tcp_header_len = tcp->th_off * 4;
+    const uint8_t* payload = packet + 14 + ip_header_len + tcp_header_len;
+    size_t payload_len = ntohs(ip->iph_len) - ip_header_len - tcp_header_len;
+
+    // Process payload if present
+    if (payload_len > 0 || (tcp->th_flags & (TH_SYN | TH_FIN))) {
+        conn.process_payload(is_from_client, ntohl(tcp->th_seq), payload, payload_len, tcp->th_flags);
+    }
 }
 
 void PacketProcessor::handle_packet(const struct pcap_pkthdr* header, const u_char* packet) {
@@ -92,6 +121,10 @@ void PacketProcessor::handle_packet(const struct pcap_pkthdr* header, const u_ch
 	if (conn.get_key().src_ip.empty()) return;
 
 	bool is_from_client = conn.is_from_client(key.src_ip);
+	
+    // Process payload using the new method
+    process_payload(conn, packet, tcp, is_from_client);
+
 	if (is_from_client)
     	conn.update_server_state(tcp->th_flags);
     else

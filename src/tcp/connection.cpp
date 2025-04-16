@@ -6,7 +6,7 @@
 #include <chrono>
 #include <sstream>
 
-Connection::Connection(const ConnectionKey& key, int id, bool debug_mode)
+Connection::Connection(const ConnectionKey& key, int id, bool debug_mode, Reassebly::DataCallback data_callback)
     : key_(key), id_(id), last_update_(std::chrono::steady_clock::now()), state_log_("state.log", debug_mode), debug_mode_(debug_mode) {
 	last_update_ = std::chrono::steady_clock::now();
     // Client starts by initiating connection -> SYN_SENT
@@ -17,6 +17,10 @@ Connection::Connection(const ConnectionKey& key, int id, bool debug_mode)
     server_state_.start_time = last_update_;
     client_state_.prev_state = tcp_state::closed; // Indicate transition from non-existence
     server_state_.prev_state = tcp_state::closed; // Indicate transition from non-existence
+
+    // Initialize reassembly objects for both directions
+    client_reassembly_ = std::make_unique<Reassebly>(key, ReassemblyDirection::CLIENT_TO_SERVER, debug_mode, data_callback);
+    server_reassembly_ = std::make_unique<Reassebly>(!key, ReassemblyDirection::SERVER_TO_CLIENT, debug_mode, data_callback);
 
     // Log initial state
     std::string initial_info = "Initial State: cli:" + state_to_string(client_state_.state) +
@@ -286,5 +290,43 @@ std::string Connection::state_to_string(tcp_state s) const {
         case tcp_state::last_ack: return "LAST_ACK";
         case tcp_state::time_wait: return "TIME_WAIT";
         default: return "UNKNOWN";
+    }
+}
+
+void Connection::handle_syn_sequence(bool is_from_client, uint32_t seq) {
+    if (is_from_client) {
+        if (client_state_.state == tcp_state::syn_sent) {
+            client_reassembly_->set_initial_seq(seq + 1); // ISN + 1 for data
+        }
+    } else {
+        if (server_state_.state == tcp_state::syn_received) {
+            server_reassembly_->set_initial_seq(seq + 1); // ISN + 1 for data
+        }
+    }
+}
+
+void Connection::process_payload(bool is_from_client, uint32_t seq, const uint8_t* payload, size_t payload_len, uint8_t flags) {
+    // Handle sequence number initialization on SYN
+    if (flags & TH_SYN) {
+        handle_syn_sequence(is_from_client, seq);
+    }
+
+    // Process the payload through appropriate reassembly object
+    if (is_from_client) {
+        client_reassembly_->process(seq, payload, payload_len, flags & TH_SYN, flags & TH_FIN);
+        if (flags & TH_FIN) {
+            client_reassembly_->fin_received();
+        }
+    } else {
+        server_reassembly_->process(seq, payload, payload_len, flags & TH_SYN, flags & TH_FIN);
+        if (flags & TH_FIN) {
+            server_reassembly_->fin_received();
+        }
+    }
+
+    // Handle connection reset
+    if (flags & TH_RST) {
+        client_reassembly_->reset();
+        server_reassembly_->reset();
     }
 }
