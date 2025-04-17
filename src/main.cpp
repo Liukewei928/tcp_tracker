@@ -1,5 +1,5 @@
 #include "tcp/packet_processor.hpp"
-#include "console/console_display.hpp"
+#include "tcp/connection_manager.hpp"
 #include <pcap.h>
 #include <iostream>
 #include <cstring>
@@ -15,9 +15,8 @@ struct ProgramOptions {
     bool debug_mode = false;
     bool truncate_packet_log = false;
     bool truncate_state_log = false;
-    int debounce_seconds = 5;
     int cleanup_interval_seconds = 5;
-	std::string filter = "tcp";
+    std::string filter = "tcp";
 };
 
 void signal_handler(int signum) {
@@ -31,25 +30,20 @@ void signal_handler(int signum) {
 void setup_signal_handlers() {
     signal(SIGINT, signal_handler);  // Ctrl+C
     signal(SIGTERM, signal_handler); // Termination signal
-
-   // Log packet_log("packet.log", true);
-  //  Log state_log("state.log", true);
-	//packet_log.flush();
-//	state_log.flush();
 }
 
 void truncate_log() {
     std::cout << "Truncating log..." << std::endl;
     Log packet_log("packet.log", true);
     Log state_log("state.log", true);
-	packet_log.truncate();
-	state_log.truncate();
+    packet_log.truncate();
+    state_log.truncate();
 }
 
 ProgramOptions parse_arguments(int argc, char* argv[]) {
     ProgramOptions options;
     for (int i = 1; i < argc; ++i) {
-		if (strcmp(argv[i], "-f") == 0) {
+        if (strcmp(argv[i], "-f") == 0) {
             if (i + 1 < argc) {
                 options.filter = argv[++i];  // Set filter to the next argument
             } else {
@@ -58,11 +52,10 @@ ProgramOptions parse_arguments(int argc, char* argv[]) {
             }
         }
         else if (strcmp(argv[i], "-D") == 0) {
-			options.debug_mode = true;
-			truncate_log();
-		}	 
+            options.debug_mode = true;
+            truncate_log();
+        }     
         else if (strcmp(argv[i], "-d") == 0) options.debug_mode = true;
-        else if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) options.debounce_seconds = atoi(argv[++i]);
         else if (strcmp(argv[i], "-c") == 0 && i + 1 < argc) options.cleanup_interval_seconds = atoi(argv[++i]);
     }
     return options;
@@ -89,7 +82,6 @@ std::string create_startup_message(const ProgramOptions& options) {
     return "starting tcp state tracking on en1 with filter 'tcp' (debug " +
            std::string(options.debug_mode ? "on" : "off") +
            ", flush every 1000 updates or 5 minutes, debounce " +
-           std::to_string(options.debounce_seconds) + " s, cleanup every " +
            std::to_string(options.cleanup_interval_seconds) + " s)";
 }
 
@@ -110,10 +102,15 @@ int main(int argc, char* argv[]) {
     if (!handle) {
         return 1;
     }
+
+    std::cout << create_startup_message(options) << std::endl;
     
-	std::string startup_message = create_startup_message(options);
-    ConsoleDisplay display(options.debounce_seconds, startup_message);
-    PacketProcessor processor(display, options.cleanup_interval_seconds, options.debug_mode);
+    // Create connection manager first
+    ConnectionManager conn_manager(options.cleanup_interval_seconds, options.debug_mode);
+    
+    // Create packet processor with reference to connection manager
+    PacketProcessor processor(conn_manager, options.debug_mode);
+    
     run_packet_capture(handle, processor);
 
     return 0;

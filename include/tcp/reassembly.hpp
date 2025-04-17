@@ -1,7 +1,6 @@
 #ifndef TCP_REASSEMBLY_HPP
 #define TCP_REASSEMBLY_HPP
 
-#include "tcp_def/tcp_state.hpp"
 #include "tcp_def/reassembly_def.hpp"
 #include "tcp/connection_key.hpp"
 #include "log/log.hpp"
