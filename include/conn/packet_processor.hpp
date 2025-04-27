@@ -2,8 +2,8 @@
 #define PACKET_PROCESSOR_HPP
 
 #include <pcap.h>
-#include "tcp/connection_manager.hpp"
-#include "tcp_def/ip_tcp_header.hpp"
+#include "conn/connection_manager.hpp"
+#include "definations/ip_tcp_header.hpp"
 #include "log/log.hpp"
 
 class PacketProcessor {

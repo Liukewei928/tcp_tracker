@@ -1,7 +1,7 @@
 #ifndef LOG_ENTRY_HPP
 #define LOG_ENTRY_HPP
 
-#include "tcp/connection_key.hpp"
+#include "conn/connection_key.hpp"
 #include <sstream>
 #include <string>
 #include <chrono>

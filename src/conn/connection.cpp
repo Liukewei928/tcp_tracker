@@ -1,14 +1,15 @@
-#include "tcp/connection.hpp"
-#include "tcp_def/ip_tcp_header.hpp"
-#include "log/state_log_entry.hpp"
+#include "conn/connection.hpp"
+#include "definations/ip_tcp_header.hpp"
+#include "log/conn_log_entry.hpp"
+#include "interfaces/protocol_analyzer.hpp"
 #include <iostream>
 #include <iomanip>
 #include <chrono>
 #include <sstream>
 
-Connection::Connection(const ConnectionKey& key, int id, bool debug_mode, Reassebly::DataCallback data_callback)
-    : key_(key), id_(id), last_update_(std::chrono::steady_clock::now()), state_log_("state.log", debug_mode), debug_mode_(debug_mode) {
-	last_update_ = std::chrono::steady_clock::now();
+Connection::Connection(const ConnectionKey& key, int id, bool debug_mode)
+    : key_(key), id_(id), last_update_(std::chrono::steady_clock::now()), 
+    state_log_("state.log", debug_mode), debug_mode_(debug_mode) {
     // Client starts by initiating connection -> SYN_SENT
     // Server starts by listening -> LISTEN
     client_state_.state = tcp_state::syn_sent; // More accurate starting point if created on first SYN
@@ -19,17 +20,22 @@ Connection::Connection(const ConnectionKey& key, int id, bool debug_mode, Reasse
     server_state_.prev_state = tcp_state::closed; // Indicate transition from non-existence
 
     // Initialize reassembly objects for both directions
-    client_reassembly_ = std::make_unique<Reassebly>(key, ReassemblyDirection::CLIENT_TO_SERVER, debug_mode, data_callback);
-    server_reassembly_ = std::make_unique<Reassebly>(!key, ReassemblyDirection::SERVER_TO_CLIENT, debug_mode, data_callback);
+    client_reassembly_ = std::make_unique<Reassembly>(key, ReassemblyDirection::CLIENT_TO_SERVER, debug_mode);
+    server_reassembly_ = std::make_unique<Reassembly>(!key, ReassemblyDirection::SERVER_TO_CLIENT, debug_mode);
 
     // Log initial state
     std::string initial_info = "Initial State: cli:" + TcpStateMachine::state_to_string(client_state_.state) +
                                " srv:" + TcpStateMachine::state_to_string(server_state_.state);
-    state_log_.log(std::make_shared<StateLogEntry>(key_, initial_info));
+    state_log_.log(std::make_shared<ConnLogEntry>(key_, initial_info));
 }
 
 Connection::~Connection() {
     state_log_.flush(); // Ensure logs are written on destruction
+}
+
+void Connection::add_analyzer(std::shared_ptr<IProtocolAnalyzer> analyzer) {
+    client_reassembly_->add_analyzer(analyzer);
+    server_reassembly_->add_analyzer(analyzer);
 }
 
 void Connection::update_client_state(uint8_t flags) {
@@ -42,7 +48,7 @@ void Connection::update_client_state(uint8_t flags) {
         std::string change_info = "Trigger: S->C flags(" + TcpStateMachine::flags_to_string(flags) + ") | " + // Show trigger
                                   "cli: " + TcpStateMachine::state_to_string(current_state) + " -> " + TcpStateMachine::state_to_string(new_state) +
                                   " | srv_ctx: " + TcpStateMachine::state_to_string(server_state_.state);
-        state_log_.log(std::make_shared<StateLogEntry>(!key_, change_info)); // Use !key_
+        state_log_.log(std::make_shared<ConnLogEntry>(!key_, change_info)); // Use !key_
 
         // Update state members AFTER logging
         client_state_.prev_state = current_state;
@@ -69,7 +75,7 @@ void Connection::update_server_state(uint8_t flags) {
         std::string change_info = "Trigger: C->S flags(" + TcpStateMachine::flags_to_string(flags) + ") | " + // Show trigger
                                   "srv: " + TcpStateMachine::state_to_string(current_state) + " -> " + TcpStateMachine::state_to_string(new_state) +
                                   " | cli_ctx: " + TcpStateMachine::state_to_string(client_state_.state);
-        state_log_.log(std::make_shared<StateLogEntry>(key_, change_info)); // Use key_
+        state_log_.log(std::make_shared<ConnLogEntry>(key_, change_info)); // Use key_
 
         // Update state members AFTER logging
         server_state_.prev_state = current_state;

@@ -7,13 +7,14 @@
 #include <mutex>
 #include <atomic>
 #include <vector>
-#include "tcp/connection.hpp"
-#include "tcp_def/ip_tcp_header.hpp"
+#include "conn/connection.hpp"
+#include "definations/ip_tcp_header.hpp"
 #include "log/log.hpp"
 
 class ConnectionManager {
 public:
-    ConnectionManager(int cleanup_interval_seconds = 5, bool debug_mode = false);
+    ConnectionManager(int cleanup_interval_seconds = 5, bool debug_mode = false, 
+        std::vector<std::string> default_analyzers = {});
     ~ConnectionManager();
 
     // Process a packet and update connection state
@@ -33,6 +34,7 @@ private:
     
     std::unordered_map<ConnectionKey, std::unique_ptr<Connection>> connections_;
     std::vector<ConnectionKey> marked_for_cleanup_;
+    std::vector<std::string> default_analyzers_;
 
     int next_id_;
     std::thread cleanup_thread_;

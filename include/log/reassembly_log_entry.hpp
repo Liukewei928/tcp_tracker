@@ -2,8 +2,8 @@
 #define REASSEMBLY_LOG_ENTRY_HPP
 
 #include "log_entry.hpp"
-#include "tcp/connection_key.hpp"
-#include "tcp_def/reassembly_def.hpp"
+#include "conn/connection_key.hpp"
+#include "definations/reassembly_def.hpp"
 #include <string>
 #include <sstream>
 #include <iomanip>

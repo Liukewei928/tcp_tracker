@@ -1,30 +1,29 @@
-#include "tcp/reassembly.hpp"
-#include "tcp/connection_key.hpp"
+#include "reassm/reassembly.hpp"
+#include "conn/connection_key.hpp"
 #include "log/reassembly_log_entry.hpp"
 #include <algorithm> // For std::min
 #include <vector>
 #include <iostream> // For potential stderr debug
 
-Reassebly::Reassebly(const ConnectionKey& key, ReassemblyDirection dir, bool debug_mode, DataCallback cb)
+Reassembly::Reassembly(const ConnectionKey& key, ReassemblyDirection dir, bool debug_mode)
     : key_(key),
       direction_(dir),
       reassembly_log_("reassembly.log", debug_mode),
-      data_callback_(std::move(cb)),
       next_seq_(0),
       initial_seq_set_(false),
       fin_received_(false)
 {}
 
-Reassebly::~Reassebly() {
+Reassembly::~Reassembly() {
     reassembly_log_.flush(); // Ensure logs are written on destruction
 }
 
-void Reassebly::log_event(ReassemblyEventType type, uint32_t seq, size_t len) {
+void Reassembly::log_event(ReassemblyEventType type, uint32_t seq, size_t len) {
     reassembly_log_.log(std::make_shared<ReassemblyLogEntry>(
         key_, direction_, type, seq, len, next_seq_));
 }
 
-void Reassebly::set_initial_seq(uint32_t isn) {
+void Reassembly::set_initial_seq(uint32_t isn) {
     if (!initial_seq_set_) {
         next_seq_ = isn;
         initial_seq_set_ = true;
@@ -34,26 +33,29 @@ void Reassebly::set_initial_seq(uint32_t isn) {
     }
 }
 
-void Reassebly::reset() {
-    if (initial_seq_set_ || !out_of_order_segments_.empty()) { // Only log reset if there was state
+void Reassembly::reset() {
+    if (initial_seq_set_ || !out_of_order_segments_.empty()) { // Only noti reset if there was state
         log_event(ReassemblyEventType::BufferReset);
+        protocol_handler_.notify_reset();
     }
+
     out_of_order_segments_.clear();
     next_seq_ = 0;
     initial_seq_set_ = false;
     fin_received_ = false;
 }
 
-void Reassebly::fin_received() {
+void Reassembly::fin_received() {
     if (!fin_received_) { // Log only on first signal
          fin_received_ = true;
          log_event(ReassemblyEventType::FinSignaled);
+         protocol_handler_.notify_closed();
          // Check if FIN allows delivery of final buffered segment
          deliver_contiguous();
     }
 }
 
-void Reassebly::process(uint32_t seq, const uint8_t* payload, size_t payload_len, bool syn_flag, bool fin_flag) {
+void Reassembly::process(uint32_t seq, const uint8_t* payload, size_t payload_len, bool syn_flag, bool fin_flag) {
 
     log_event(ReassemblyEventType::SegmentReceived, seq, payload_len);
 
@@ -107,9 +109,7 @@ void Reassebly::process(uint32_t seq, const uint8_t* payload, size_t payload_len
     if (current_payload_len > 0 && seq == next_seq_) {
         // Segment starts exactly where expected - Deliver it
         log_event(ReassemblyEventType::SegmentDeliveredInOrder, seq, current_payload_len);
-        if (data_callback_) {
-            data_callback_(direction_, current_payload, current_payload_len);
-        }
+        protocol_handler_.notify_data(direction_, current_payload, current_payload_len);
         next_seq_ += static_cast<uint32_t>(current_payload_len);
 
         // Try to deliver buffered segments now that next_seq_ has advanced
@@ -140,7 +140,7 @@ void Reassebly::process(uint32_t seq, const uint8_t* payload, size_t payload_len
     }
 }
 
-void Reassebly::deliver_contiguous() {
+void Reassembly::deliver_contiguous() {
     // Can only deliver if initialized
     if (!initial_seq_set_) return;
 
@@ -155,12 +155,13 @@ void Reassebly::deliver_contiguous() {
         // If FIN consumes seq N+1, data up to N is okay.
         // If fin_received_ is true, next_seq_ might already be FIN_Seq+1.
         // Let's assume for now deliver_contiguous won't run if fin_received_ blocks things.
-
         log_event(ReassemblyEventType::SegmentDeliveredBuffered, it->first, segment_data.size());
 
-        if (data_callback_) {
-            data_callback_(direction_, segment_data.data(), segment_data.size());
-        }
+        // Notify all protocol analyzers
+        protocol_handler_.notify_data(direction_, 
+                                    segment_data.data(), 
+                                    segment_data.size());
+
         next_seq_ += static_cast<uint32_t>(segment_data.size());
 
         // Remove the delivered segment and advance iterator safely

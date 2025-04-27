@@ -9,9 +9,11 @@ find_library(PCAP_LIBRARY pcap REQUIRED)
 include_directories(include)
 
 add_subdirectory(src)
-add_subdirectory(src/tcp)
+add_subdirectory(src/conn)
+add_subdirectory(src/reassm)
 add_subdirectory(src/log)
 add_subdirectory(src/misc)
+add_subdirectory(src/tls)
 
 # Create the executable using the main_module
 add_executable(tcp_tracker

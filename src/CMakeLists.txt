@@ -3,15 +3,12 @@ add_library(main_module
     main.cpp
 )
 
-target_include_directories(main_module
-    PUBLIC
-    ${CMAKE_SOURCE_DIR}/include
-)
-
 # Link dependencies
 target_link_libraries(main_module
     PUBLIC
-    tcp_module
+    conn_module
+    reassm_module
+    tls_module
     log_module
     misc_module
     ${PCAP_LIBRARY}

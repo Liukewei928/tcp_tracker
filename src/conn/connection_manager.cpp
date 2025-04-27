@@ -1,16 +1,21 @@
-#include "tcp/connection_manager.hpp"
-#include "tcp/connection.hpp"
-#include "tcp_def/reassembly_def.hpp"
+#include "conn/connection_manager.hpp"
+#include "conn/connection.hpp"
+#include "definations/reassembly_def.hpp"
+#include "reassm/analyzer_registry.hpp"
+#include "tls/tls_analyzer.hpp"
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <chrono>
 #include <iostream>
 
-ConnectionManager::ConnectionManager(int cleanup_interval_seconds, bool debug_mode)
+
+ConnectionManager::ConnectionManager(int cleanup_interval_seconds, bool debug_mode, 
+    std::vector<std::string> default_analyzers)
     : next_id_(1)
     , running_(true)
     , cleanup_interval_seconds_(cleanup_interval_seconds)
     , debug_mode_(debug_mode)
+    , default_analyzers_(std::move(default_analyzers))
 {
     cleanup_thread_ = std::thread(&ConnectionManager::cleanup_thread_func, this);
 }
@@ -84,20 +89,11 @@ Connection& ConnectionManager::create_or_get_connection(const ConnectionKey& key
             return *std::move(conn);
         }
 
-        // Create data callback for reassembly
-        auto data_callback = [this](ReassemblyDirection dir, const uint8_t* data, size_t len) {
-            if (debug_mode_) {
-                std::cout << "Reassembled " << len << " bytes from " 
-                          << (dir == ReassemblyDirection::CLIENT_TO_SERVER ? "client->server" : "server->client")
-                          << std::endl;
-                if (data != nullptr) {
-                    std::cerr << "Payload as string: \"" << std::string(reinterpret_cast<const char*>(data), len) 
-                              << "\"" << std::endl;
-                }
-            }
-        };
+        auto conn = std::make_unique<Connection>(key, next_id_++, debug_mode_);
+        for (const auto& analyzer : default_analyzers_) {
+            conn->add_analyzer(AnalyzerRegistry::get_instance().create_analyzer(analyzer, key));
+        }
 
-        auto conn = std::make_unique<Connection>(key, next_id_++, debug_mode_, data_callback);
         connections_[key] = std::move(conn);
         return *connections_[key];
     }
