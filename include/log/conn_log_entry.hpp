@@ -6,7 +6,7 @@
 
 class ConnLogEntry : public LogEntry {
 public:
-    ConnLogEntry(const ConnectionKey& key, const std::string& state);
+    ConnLogEntry(const ConnectionKey& key, const std::string& content);
     std::string format() const override;
 
 private:

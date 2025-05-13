@@ -6,13 +6,14 @@
 #include "definations/reassembly_def.hpp"
 #include "reassm/reassembly.hpp"
 #include "interfaces/protocol_analyzer.hpp"
-#include "log/log.hpp"
+#include "log/log_manager.hpp"
 #include <string>
 #include <chrono>
 
 class Connection {
 public:
-    Connection(const ConnectionKey& key, int id, bool debug_mode = false);
+    Connection() = default;
+    Connection(const ConnectionKey& key, int id);
 	~Connection();
     void add_analyzer(std::shared_ptr<IProtocolAnalyzer> analyzer);
     void update_client_state(uint8_t flags);
@@ -40,11 +41,10 @@ private:
     State client_state_;
     State server_state_;
     std::chrono::steady_clock::time_point last_update_;
-    Log state_log_;
-	bool debug_mode_;
     std::unique_ptr<Reassembly> client_reassembly_;
     std::unique_ptr<Reassembly> server_reassembly_;
     TcpStateMachine state_machine_;
+    Log& tcp_log_ = LogManager::get_instance().get_registered_log("tcp.log");
 };
 
 #endif // CONNECTION_HPP

@@ -1,9 +1,11 @@
 #include "tls/tls_record.hpp"
 #include <algorithm>
+#include <iostream>
 
 std::optional<size_t> TLSRecord::try_parse(const uint8_t* data, size_t len,
                                          TLSContentType& type, std::vector<uint8_t>& fragment) {
     if (!validate_header(data, len)) {
+        std::cout << "[TLSRecord] Invalid header: insufficient data\n";
         return std::nullopt;
     }
 
@@ -14,17 +16,20 @@ std::optional<size_t> TLSRecord::try_parse(const uint8_t* data, size_t len,
 
     // Validate version and length
     if (!check_version(version) || !check_length(length)) {
+        std::cout << "[TLSRecord] Invalid version or length: version = " << std::hex << version << ", length = " << length << "\n";
         return std::nullopt;
     }
 
     // Check if we have the complete record
     size_t total_length = TLS_RECORD_HEADER_LEN + length;
     if (len < total_length) {
+        std::cout << "[TLSRecord] Incomplete record: need " << total_length << " bytes, have " << len << "\n";
         return std::nullopt;
     }
 
     // Extract fragment
     fragment.assign(data + TLS_RECORD_HEADER_LEN, data + total_length);
+    std::cout << "[TLSRecord] Successfully parsed record: type = " << static_cast<int>(type) << ", length = " << length << "\n";
     return total_length;
 }
 

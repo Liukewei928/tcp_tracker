@@ -47,4 +47,4 @@ private:
     static constexpr std::chrono::seconds MAX_INACTIVITY{60};
 };
 
-#endif // TCP_STATE_MACHINE_HPP 
+#endif // TCP_STATE_MACHINE_HPP

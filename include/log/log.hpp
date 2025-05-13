@@ -17,17 +17,31 @@ struct FlushPolicy {
 
 class Log {
 public:
-    Log(const std::string& filename, bool enabled, const FlushPolicy& policy = FlushPolicy());
+    Log(const Log&) = delete;
+    Log& operator=(const Log&) = delete;
+
+    // Enable move semantics for C++ STL 
+    Log(Log&& other) noexcept; 
+    Log& operator=(Log&& other) noexcept;
+    Log() = default;
+    Log(const std::string& filename, bool enabled = false, bool print_out = false,
+        const FlushPolicy& policy = FlushPolicy());
     ~Log();
+    bool operator==(const std::string& rhs) const;
+
     void log(const std::shared_ptr<LogEntry>& entry);
     void flush();
 	void truncate();
+    const std::string& get_filename() {
+        return filename_;
+    };
 
 private:
     void check_size_and_truncate();
 
     std::string filename_;
     bool enabled_;
+    bool print_out_;
     FlushPolicy policy_;
     std::ofstream file_;
     std::vector<std::shared_ptr<LogEntry>> buffer_;

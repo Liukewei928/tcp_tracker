@@ -3,7 +3,7 @@
 
 #include "definations/reassembly_def.hpp"
 #include "conn/connection_key.hpp"
-#include "log/log.hpp"
+#include "log/log_manager.hpp"
 #include "interfaces/protocol_analyzer.hpp"
 #include "reassm/protocol_handler.hpp"
 #include <cstdint>
@@ -23,7 +23,7 @@ inline bool seq_ge(uint32_t seq1, uint32_t seq2) {
 
 class Reassembly {
 public:
-    Reassembly(const ConnectionKey& key, ReassemblyDirection dir, bool debug_mode);
+    Reassembly(const ConnectionKey& key, ReassemblyDirection dir);
 
     ~Reassembly();
 
@@ -58,10 +58,10 @@ private:
     void deliver_contiguous();
     void log_event(ReassemblyEventType type, uint32_t seq = 0, size_t len = 0);
 
-    ConnectionKey key_; // Store key for logging context
+    ConnectionKey key_;
     ReassemblyDirection direction_;
     ProtocolHandler protocol_handler_;
-    Log reassembly_log_;
+    Log& reassm_log_ = LogManager::get_instance().get_registered_log("reassm.log");
 
     uint32_t next_seq_ = 0;
     bool initial_seq_set_ = false;

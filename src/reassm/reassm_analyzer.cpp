@@ -4,37 +4,15 @@
 #include <iomanip>
 #include <sstream>
 
-ReassmAnalyzer::ReassmAnalyzer(const ConnectionKey& key, bool debug_mode)
-    : key_(key)
-    , debug_mode_(debug_mode)
-    , reassm_analyzer_log_("reassm_analyzer.log", debug_mode) {
+ReassmAnalyzer::ReassmAnalyzer(const ConnectionKey& key)
+    : key_(key) {
 }
 
 ReassmAnalyzer::~ReassmAnalyzer() {
     reassm_analyzer_log_.flush();
 }
 
-void ReassmAnalyzer::on_data(ReassemblyDirection dir, 
-                            const uint8_t* data, 
-                            size_t len) {
-    if (!debug_mode_) return;
-
-    log_data(dir, data, len);
-}
-
-void ReassmAnalyzer::on_connection_reset() {
-    if (!debug_mode_) return;
-    log_event("Connection Reset");
-}
-
-void ReassmAnalyzer::on_connection_closed() {
-    if (!debug_mode_) return;
-    log_event("Connection Closed");
-}
-
-void ReassmAnalyzer::log_data(ReassemblyDirection dir, 
-                             const uint8_t* data, 
-                             size_t len) {
+void ReassmAnalyzer::on_data(ReassemblyDirection dir, const uint8_t* data, size_t len) {
     std::stringstream ss;
     
     // Log basic info
@@ -64,14 +42,12 @@ void ReassmAnalyzer::log_data(ReassemblyDirection dir,
 
     // Log the formatted output
     reassm_analyzer_log_.log(std::make_shared<ConnLogEntry>(key_, ss.str()));
-
-    // Also print to stdout for immediate feedback
-    std::cout << ss.str() << std::endl;
 }
 
-void ReassmAnalyzer::log_event(const std::string& event) {
-    std::stringstream ss;
-    ss << "Event: " << event;
-    reassm_analyzer_log_.log(std::make_shared<ConnLogEntry>(key_, ss.str()));
-    std::cout << ss.str() << std::endl;
+void ReassmAnalyzer::on_connection_reset() {
+    reassm_analyzer_log_.log(std::make_shared<ConnLogEntry>(key_, "Connection Reset"));
+}
+
+void ReassmAnalyzer::on_connection_closed() {
+    reassm_analyzer_log_.log(std::make_shared<ConnLogEntry>(key_, "Connection Closed"));
 }

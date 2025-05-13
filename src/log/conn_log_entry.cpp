@@ -1,7 +1,7 @@
 #include "log/conn_log_entry.hpp"
 
-ConnLogEntry::ConnLogEntry(const ConnectionKey& key, const std::string& ss)
-    : LogEntry(key), content_(ss) {}
+ConnLogEntry::ConnLogEntry(const ConnectionKey& key, const std::string& content)
+    : LogEntry(key), content_(content) {}
 
 std::string ConnLogEntry::format() const {
     std::ostringstream oss;

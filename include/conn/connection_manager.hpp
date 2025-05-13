@@ -13,8 +13,7 @@
 
 class ConnectionManager {
 public:
-    ConnectionManager(int cleanup_interval_seconds = 5, bool debug_mode = false, 
-        std::vector<std::string> default_analyzers = {});
+    ConnectionManager(int cleanup_interval_seconds = 5, std::vector<std::string> default_analyzers = {});
     ~ConnectionManager();
 
     // Process a packet and update connection state
@@ -32,6 +31,7 @@ private:
     void cleanup_marked_connections();
     void cleanup_thread_func();
     
+    Connection dummy_connection_;
     std::unordered_map<ConnectionKey, std::unique_ptr<Connection>> connections_;
     std::vector<ConnectionKey> marked_for_cleanup_;
     std::vector<std::string> default_analyzers_;
@@ -42,7 +42,6 @@ private:
     std::mutex cleanup_mutex_;
     std::atomic<bool> running_;
     int cleanup_interval_seconds_;
-    bool debug_mode_;
 };
 
-#endif // CONNECTION_MANAGER_HPP 
+#endif // CONNECTION_MANAGER_HPP

@@ -5,21 +5,20 @@
 #include <vector>
 #include <iostream> // For potential stderr debug
 
-Reassembly::Reassembly(const ConnectionKey& key, ReassemblyDirection dir, bool debug_mode)
+Reassembly::Reassembly(const ConnectionKey& key, ReassemblyDirection dir)
     : key_(key),
       direction_(dir),
-      reassembly_log_("reassembly.log", debug_mode),
       next_seq_(0),
       initial_seq_set_(false),
       fin_received_(false)
 {}
 
 Reassembly::~Reassembly() {
-    reassembly_log_.flush(); // Ensure logs are written on destruction
+    reassm_log_.flush(); // Ensure logs are written on destruction
 }
 
 void Reassembly::log_event(ReassemblyEventType type, uint32_t seq, size_t len) {
-    reassembly_log_.log(std::make_shared<ReassemblyLogEntry>(
+    reassm_log_.log(std::make_shared<ReassemblyLogEntry>(
         key_, direction_, type, seq, len, next_seq_));
 }
 
@@ -103,7 +102,6 @@ void Reassembly::process(uint32_t seq, const uint8_t* payload, size_t payload_le
          // Still process FIN flag below if present, but ignore payload
          current_payload_len = 0;
      }
-
 
     // --- Process the (potentially trimmed) segment ---
     if (current_payload_len > 0 && seq == next_seq_) {

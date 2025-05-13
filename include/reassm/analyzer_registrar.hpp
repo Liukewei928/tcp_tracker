@@ -5,6 +5,7 @@
 
 class AnalyzerRegistrar {
 public:
+    static std::vector<std::string> create_analyzers(const std::vector<std::string>& enabled_analyzers);
     static void register_default_analyzers();
     static void register_tls_analyzer();
     static void register_reassm_analyzer();

@@ -3,9 +3,9 @@
 #include <iomanip>
 #include <iostream>
 
-Log::Log(const std::string& filename, bool enabled, const FlushPolicy& policy)
-    : filename_(filename), enabled_(enabled), policy_(policy), update_count_(0),
-      last_flush_time_(std::chrono::steady_clock::now()) {
+Log::Log(const std::string& filename, bool enabled, bool print_out, const FlushPolicy& policy)
+    : filename_(filename), enabled_(enabled), print_out_(print_out), policy_(policy), 
+    update_count_(0), last_flush_time_(std::chrono::steady_clock::now()) {
     if (enabled_) {
         file_.open(filename_, std::ios::app);
         if (!file_.is_open()) {
@@ -21,8 +21,43 @@ Log::~Log() {
     }
 }
 
+Log::Log(Log&& other) noexcept
+    : filename_(std::move(other.filename_)),
+    enabled_(other.enabled_),
+    print_out_(other.print_out_),
+    policy_(other.policy_),
+    file_(std::move(other.file_)),
+    buffer_(std::move(other.buffer_)),
+    update_count_(other.update_count_),
+    last_flush_time_(other.last_flush_time_) {
+
+}
+
+Log& Log::operator=(Log&& other) noexcept {
+    if (this != &other) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        filename_ = std::move(other.filename_);
+        enabled_ = other.enabled_;
+        print_out_ = other.print_out_;
+        policy_ = other.policy_;
+        file_ = std::move(other.file_);
+        buffer_ = std::move(other.buffer_);
+        update_count_ = other.update_count_;
+        last_flush_time_ = other.last_flush_time_;
+    }
+    return *this;
+}
+
+bool Log::operator==(const std::string& rhs) const {
+    return filename_ == rhs;
+}
+
 void Log::log(const std::shared_ptr<LogEntry>& entry) {
     if (!enabled_ || !file_.is_open()) return;
+
+    if (print_out_) {
+        std::cout << entry->format() << std::endl;
+    }
 
     std::lock_guard<std::mutex> lock(mutex_);
     buffer_.emplace_back(entry);
@@ -53,6 +88,7 @@ void Log::flush() {
 
 void Log::truncate() {
     std::lock_guard<std::mutex> lock(mutex_);
+
     if (enabled_ && file_.is_open()) {
         file_.close();
     }

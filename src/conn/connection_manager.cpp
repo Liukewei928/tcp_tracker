@@ -8,13 +8,10 @@
 #include <chrono>
 #include <iostream>
 
-
-ConnectionManager::ConnectionManager(int cleanup_interval_seconds, bool debug_mode, 
-    std::vector<std::string> default_analyzers)
+ConnectionManager::ConnectionManager(int cleanup_interval_seconds, std::vector<std::string> default_analyzers)
     : next_id_(1)
     , running_(true)
     , cleanup_interval_seconds_(cleanup_interval_seconds)
-    , debug_mode_(debug_mode)
     , default_analyzers_(std::move(default_analyzers))
 {
     cleanup_thread_ = std::thread(&ConnectionManager::cleanup_thread_func, this);
@@ -84,12 +81,10 @@ Connection& ConnectionManager::create_or_get_connection(const ConnectionKey& key
     if (it == connections_.end()) {
         bool init_flag = (tcp->th_flags & TH_SYN) && !(tcp->th_flags & TH_ACK);
         if (!init_flag) {
-            ConnectionKey empty_key;
-            auto conn = std::make_unique<Connection>(empty_key, 0);
-            return *std::move(conn);
+            return dummy_connection_;
         }
 
-        auto conn = std::make_unique<Connection>(key, next_id_++, debug_mode_);
+        auto conn = std::make_unique<Connection>(key, next_id_++);
         for (const auto& analyzer : default_analyzers_) {
             conn->add_analyzer(AnalyzerRegistry::get_instance().create_analyzer(analyzer, key));
         }
@@ -129,4 +124,4 @@ void ConnectionManager::cleanup_thread_func() {
         cleanup_marked_connections();
         std::this_thread::sleep_for(std::chrono::seconds(cleanup_interval_seconds_));
     }
-} 
+}

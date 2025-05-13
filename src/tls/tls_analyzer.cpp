@@ -1,12 +1,23 @@
 #include "tls/tls_analyzer.hpp"
-#include <cassert>
+#include "log/conn_log_entry.hpp"
+#include <iostream>
+#include <iomanip>
+#include <sstream>
 
 TLSAnalyzer::TLSAnalyzer(const ConnectionKey& key)
-    : key_(key),
-      state_(TLSState::INIT) {
+    : key_(key), state_(TLSState::INIT) { }
+
+TLSAnalyzer::~TLSAnalyzer() {
+    tls_log_.flush();
 }
 
 void TLSAnalyzer::on_data(ReassemblyDirection dir, const uint8_t* data, size_t len) {
+    std::stringstream ss;
+    ss << "on_data - " << (dir == ReassemblyDirection::CLIENT_TO_SERVER ? "Client->Server" : "Server->Client")
+        << " (" << len << " bytes)";
+    tls_log_.log(std::make_shared<ConnLogEntry>(key_, ss.str()));
+    std::cout << ss.str() << std::endl;
+
     // Add data to appropriate buffer
     auto& buffer = (dir == ReassemblyDirection::CLIENT_TO_SERVER) ? 
                    client_buffer_ : server_buffer_;
@@ -17,6 +28,13 @@ void TLSAnalyzer::on_data(ReassemblyDirection dir, const uint8_t* data, size_t l
     TLSContentType type;
     std::vector<uint8_t> fragment;
     while (buffer.try_extract_record(type, fragment)) {
+
+        std::stringstream ss;
+        ss << "Extracted record of type: " << static_cast<int>(type)
+           << " (length: " << fragment.size() << ")";
+        tls_log_.log(std::make_shared<ConnLogEntry>(key_, ss.str()));
+        std::cout << ss.str() << std::endl;
+
         handle_record(dir, type, fragment);
     }
 }
@@ -48,6 +66,11 @@ void TLSAnalyzer::handle_handshake(ReassemblyDirection dir, const std::vector<ui
     }
 
     TLSHandshakeType msg_type = static_cast<TLSHandshakeType>(data[0]);
+    
+    std::stringstream ss;
+    ss << "handle_handshake - message type: " << static_cast<int>(msg_type);
+    tls_log_.log(std::make_shared<ConnLogEntry>(key_, ss.str()));
+    std::cout << ss.str() << std::endl;
     
     switch (msg_type) {
         case TLSHandshakeType::CLIENT_HELLO:
@@ -125,6 +148,11 @@ void TLSAnalyzer::update_state(TLSState new_state) {
     }
     
     if (valid_transition) {
+        std::stringstream ss;
+        ss << "State transition: " << static_cast<int>(state_) << " -> " << static_cast<int>(new_state);
+        tls_log_.log(std::make_shared<ConnLogEntry>(key_, ss.str()));
+        std::cout << ss.str() << std::endl;
+        
         state_ = new_state;
     }
 }

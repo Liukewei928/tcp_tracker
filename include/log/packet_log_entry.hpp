@@ -7,11 +7,13 @@
 
 class PacketLogEntry : public LogEntry {
 public:
-    PacketLogEntry(const ConnectionKey& key, const tcpheader* tcp);
+    PacketLogEntry(const ConnectionKey& key, const tcpheader* tcp, const u_char* packet,  size_t packet_len);
     std::string format() const override;
 
 private:
     const tcpheader* tcp_;
+    const u_char* packet_;
+    size_t packet_len_;
 };
 
 #endif // PACKET_LOG_ENTRY_HPP

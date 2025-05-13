@@ -25,4 +25,4 @@ namespace std {
     };
 }
 
-#endif // CONNECTION_KEY_HPP    
+#endif // CONNECTION_KEY_HPP
