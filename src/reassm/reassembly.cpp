@@ -1,9 +1,8 @@
 #include "reassm/reassembly.hpp"
 #include "conn/connection_key.hpp"
 #include "log/reassembly_log_entry.hpp"
-#include <algorithm> // For std::min
+#include <algorithm>
 #include <vector>
-#include <iostream> // For potential stderr debug
 
 Reassembly::Reassembly(const ConnectionKey& key, ReassemblyDirection dir)
     : key_(key),

@@ -30,7 +30,6 @@ Log::Log(Log&& other) noexcept
     buffer_(std::move(other.buffer_)),
     update_count_(other.update_count_),
     last_flush_time_(other.last_flush_time_) {
-
 }
 
 Log& Log::operator=(Log&& other) noexcept {

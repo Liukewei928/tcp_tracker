@@ -24,35 +24,28 @@ ConnectionManager::~ConnectionManager() {
     }
 }
 
-void ConnectionManager::process_packet(const ConnectionKey& key, const tcpheader* tcp, const u_char* packet, size_t packet_len) {
-    if (!tcp || key.src_ip.empty() || key.dst_ip.empty()) return;
+void ConnectionManager::process_packet(const ConnectionKey& key, const PacketKey& pkey) {
+    if (!pkey.tcp || key.src_ip.empty() || key.dst_ip.empty()) return;
 
-    Connection& conn = create_or_get_connection(key, tcp);
+    Connection& conn = create_or_get_connection(key, pkey.tcp);
     if (conn.get_key().src_ip.empty()) return;
 
     bool is_from_client = conn.is_from_client(key.src_ip);
-    
-    // Extract payload information
-    const auto* ip = reinterpret_cast<const ipheader*>(packet + 14);
-    int ip_header_len = ip->iph_ihl * 4;
-    int tcp_header_len = tcp->th_off * 4;
-    const uint8_t* payload = packet + 14 + ip_header_len + tcp_header_len;
-    size_t payload_len = ntohs(ip->iph_len) - ip_header_len - tcp_header_len;
 
-    // Process payload if present
-    if (payload_len > 0 || (tcp->th_flags & (TH_SYN | TH_FIN))) {
-        conn.process_payload(is_from_client, ntohl(tcp->th_seq), payload, payload_len, tcp->th_flags);
+    if (pkey.payload_len > 0 || (pkey.tcp->th_flags & (TH_SYN | TH_FIN))) {
+        conn.process_payload(is_from_client, ntohl(pkey.tcp->th_seq), 
+            pkey.payload, pkey.payload_len, pkey.tcp->th_flags);
     }
 
     // Update connection state
     if (is_from_client) {
-        conn.update_server_state(tcp->th_flags);
+        conn.update_server_state(pkey.tcp->th_flags);
     } else {
-        conn.update_client_state(tcp->th_flags);
+        conn.update_client_state(pkey.tcp->th_flags);
     }
 
     // Check if connection should be marked for cleanup
-    if ((tcp->th_flags & (TH_FIN | TH_RST)) || 
+    if ((pkey.tcp->th_flags & (TH_FIN | TH_RST)) || 
         (conn.get_client_state() == tcp_state::closed && conn.get_server_state() == tcp_state::closed) ||
         (conn.get_client_state() == tcp_state::time_wait || conn.get_server_state() == tcp_state::time_wait)) {
         mark_for_cleanup(key);
@@ -74,7 +67,7 @@ std::vector<Connection*> ConnectionManager::get_active_connections() {
     return active_connections;
 }
 
-Connection& ConnectionManager::create_or_get_connection(const ConnectionKey& key, const tcpheader* tcp) {
+Connection& ConnectionManager::create_or_get_connection(const ConnectionKey& key, const TCPHeader* tcp) {
     std::unique_lock<std::mutex> lock(connections_mutex_);
     auto it = connections_.find(key);
     

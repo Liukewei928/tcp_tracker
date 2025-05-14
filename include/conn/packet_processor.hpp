@@ -3,7 +3,7 @@
 
 #include <pcap.h>
 #include "conn/connection_manager.hpp"
-#include "definations/ip_tcp_header.hpp"
+#include "definations/packet_key.hpp"
 #include "log/log_manager.hpp"
 
 class PacketProcessor {
@@ -14,8 +14,9 @@ public:
 
 private:
     bool validate_packet(const struct pcap_pkthdr* header, const u_char* packet);
-    void extract_packet_info(const u_char* packet, ConnectionKey& key, const tcpheader*& tcp);
-    
+    bool extract_packet(const u_char* packet, const size_t packet_len, 
+        ConnectionKey& key, PacketKey& pkey);
+
     ConnectionManager& connection_manager_;
     Log& packet_log_ = LogManager::get_instance().get_registered_log("packet.log");
 };

@@ -8,7 +8,7 @@
 #include <atomic>
 #include <vector>
 #include "conn/connection.hpp"
-#include "definations/ip_tcp_header.hpp"
+#include "definations/packet_key.hpp"
 #include "log/log.hpp"
 
 class ConnectionManager {
@@ -17,7 +17,7 @@ public:
     ~ConnectionManager();
 
     // Process a packet and update connection state
-    void process_packet(const ConnectionKey& key, const tcpheader* tcp, const u_char* packet, size_t packet_len);
+    void process_packet(const ConnectionKey& key, const PacketKey& pkey);
     
     // Get a connection by key
     Connection* get_connection(const ConnectionKey& key);
@@ -26,7 +26,7 @@ public:
     std::vector<Connection*> get_active_connections();
 
 private:
-    Connection& create_or_get_connection(const ConnectionKey& key, const tcpheader* tcp);
+    Connection& create_or_get_connection(const ConnectionKey& key, const TCPHeader* tcp);
     void mark_for_cleanup(const ConnectionKey& key);
     void cleanup_marked_connections();
     void cleanup_thread_func();
