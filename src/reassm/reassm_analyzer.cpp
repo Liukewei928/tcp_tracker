@@ -12,25 +12,25 @@ ReassmAnalyzer::~ReassmAnalyzer() {
     reassm_analyzer_log_.flush();
 }
 
-void ReassmAnalyzer::on_data(ReassemblyDirection dir, const uint8_t* data, size_t len) {
+void ReassmAnalyzer::on_data(Direction dir, const uint8_t* data, size_t len) {
     std::stringstream ss;
     
     // Log basic info
     ss << "Reassembled Data - "
-       << (dir == ReassemblyDirection::CLIENT_TO_SERVER ? "Client->Server" : "Server->Client")
+       << (dir == Direction::CLIENT_TO_SERVER ? "Client->Server" : "Server->Client")
        << " (" << len << " bytes)\n";
 
     // Hex dump
     ss << "Hex dump:\n";
     for (size_t i = 0; i < len; ++i) {
         if (i % 16 == 0) {
-            if (i > 0) ss << "\n";
+            if (i > 0) ss << std::endl;
             ss << std::setw(4) << std::setfill('0') << std::hex << i << ": ";
         }
         ss << std::setw(2) << std::setfill('0') << std::hex 
            << static_cast<int>(data[i]) << " ";
     }
-    ss << "\n";
+    ss << std::endl;
 
     // ASCII representation
     ss << "ASCII:\n";
@@ -38,7 +38,7 @@ void ReassmAnalyzer::on_data(ReassemblyDirection dir, const uint8_t* data, size_
         char c = data[i];
         ss << (isprint(c) ? c : '.');
     }
-    ss << "\n";
+    ss << std::endl;
 
     // Log the formatted output
     reassm_analyzer_log_.log(std::make_shared<ConnLogEntry>(key_, ss.str()));

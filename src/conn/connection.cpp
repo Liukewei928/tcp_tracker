@@ -1,5 +1,5 @@
 #include "conn/connection.hpp"
-#include "definations/packet_key.hpp"
+#include "definitions/packet_key.hpp"
 #include "log/conn_log_entry.hpp"
 #include "interfaces/protocol_analyzer.hpp"
 #include <iostream>
@@ -11,16 +11,16 @@ Connection::Connection(const ConnectionKey& key, int id)
     : key_(key), id_(id), last_update_(std::chrono::steady_clock::now()) {
     // Client starts by initiating connection -> SYN_SENT
     // Server starts by listening -> LISTEN
-    client_state_.state = tcp_state::syn_sent; // More accurate starting point if created on first SYN
-    server_state_.state = tcp_state::listen;
+    client_state_.state = TCPState::SYN_SENT; // More accurate starting point if created on first SYN
+    server_state_.state = TCPState::LISTEN;
     client_state_.start_time = last_update_;
     server_state_.start_time = last_update_;
-    client_state_.prev_state = tcp_state::closed; // Indicate transition from non-existence
-    server_state_.prev_state = tcp_state::closed; // Indicate transition from non-existence
+    client_state_.prev_state = TCPState::CLOSED; // Indicate transition from non-existence
+    server_state_.prev_state = TCPState::CLOSED; // Indicate transition from non-existence
 
     // Initialize reassembly objects for both directions
-    client_reassembly_ = std::make_unique<Reassembly>(key, ReassemblyDirection::CLIENT_TO_SERVER);
-    server_reassembly_ = std::make_unique<Reassembly>(!key, ReassemblyDirection::SERVER_TO_CLIENT);
+    client_reassembly_ = std::make_unique<Reassembly>(key, Direction::CLIENT_TO_SERVER);
+    server_reassembly_ = std::make_unique<Reassembly>(!key, Direction::SERVER_TO_CLIENT);
 
     std::string initial_info = "Initial State: cli:" + TcpStateMachine::state_to_string(client_state_.state) +
                                " srv:" + TcpStateMachine::state_to_string(server_state_.state);
@@ -37,8 +37,8 @@ void Connection::add_analyzer(std::shared_ptr<IProtocolAnalyzer> analyzer) {
 }
 
 void Connection::update_client_state(uint8_t flags) {
-    tcp_state current_state = client_state_.state;
-    tcp_state new_state = state_machine_.determine_new_state(current_state, flags, true);
+    TCPState current_state = client_state_.state;
+    TCPState new_state = state_machine_.determine_new_state(current_state, flags, true);
 
     if (new_state != current_state) {
         auto timestamp = std::chrono::steady_clock::now();
@@ -55,7 +55,7 @@ void Connection::update_client_state(uint8_t flags) {
         last_update_ = timestamp;
 
         // Set time_wait_entry_time when entering TIME_WAIT state
-        if (new_state == tcp_state::time_wait) {
+        if (new_state == TCPState::TIME_WAIT) {
             client_state_.time_wait_entry_time = timestamp;
         }
     } else {
@@ -64,8 +64,8 @@ void Connection::update_client_state(uint8_t flags) {
 }
 
 void Connection::update_server_state(uint8_t flags) {
-    tcp_state current_state = server_state_.state;
-    tcp_state new_state = state_machine_.determine_new_state(current_state, flags, false);
+    TCPState current_state = server_state_.state;
+    TCPState new_state = state_machine_.determine_new_state(current_state, flags, false);
 
     if (new_state != current_state) {
         auto timestamp = std::chrono::steady_clock::now();
@@ -82,7 +82,7 @@ void Connection::update_server_state(uint8_t flags) {
         last_update_ = timestamp;
 
         // Set time_wait_entry_time when entering TIME_WAIT state
-        if (new_state == tcp_state::time_wait) {
+        if (new_state == TCPState::TIME_WAIT) {
             server_state_.time_wait_entry_time = timestamp;
         }
     } else {
@@ -96,11 +96,11 @@ bool Connection::should_clean_up() const {
 
 void Connection::handle_syn_sequence(bool is_from_client, uint32_t seq) {
     if (is_from_client) {
-        if (client_state_.state == tcp_state::syn_sent) {
+        if (client_state_.state == TCPState::SYN_SENT) {
             client_reassembly_->set_initial_seq(seq + 1); // ISN + 1 for data
         }
     } else {
-        if (server_state_.state == tcp_state::syn_received) {
+        if (server_state_.state == TCPState::SYN_RECEIVED) {
             server_reassembly_->set_initial_seq(seq + 1); // ISN + 1 for data
         }
     }

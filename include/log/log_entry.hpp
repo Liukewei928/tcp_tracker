@@ -12,6 +12,7 @@ public:
 	LogEntry(const ConnectionKey& key);
 	virtual ~LogEntry() = default;
     virtual std::string format() const = 0;
+    static std::string get_formatted_buffer(const uint8_t* buf, const size_t len);
 
 protected:
 	std::string get_timestamp() const;

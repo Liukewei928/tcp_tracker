@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
 
     ConnectionManager conn_manager(options.cleanup_interval_seconds, 
         AnalyzerRegistrar::create_analyzers(options.enabled_analyzers));
-    PacketProcessor processor(conn_manager);
+    PacketProcessor processor(conn_manager); //todo:a way to terminate stuck processor
 
     setup_signal_handlers();
     pcap_handle = handle;  // Set global handle for signal handler

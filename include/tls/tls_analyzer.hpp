@@ -1,11 +1,12 @@
 #ifndef TLS_ANALYZER_HPP
 #define TLS_ANALYZER_HPP
 
-#include "definations/reassembly_def.hpp"
-#include "definations/tls_types.hpp"
+#include "definitions/direction.hpp"
+#include "definitions/tls_types.hpp"
 #include "conn/connection_key.hpp"
 #include "interfaces/protocol_analyzer.hpp"
-#include "tls/tls_record.hpp"
+#include "tls/tls_recorder.hpp"
+#include "tls/tls12_state_machine.hpp"
 #include "log/log_manager.hpp"
 #include <memory>
 
@@ -16,36 +17,32 @@ public:
     ~TLSAnalyzer();
 
     // IProtocolAnalyzer interface implementation
-    void on_data(ReassemblyDirection dir, 
+    void on_data(Direction dir, 
                  const uint8_t* data, 
                  size_t len) override;
 
     // TLS-specific interface
-    TLSState get_state() const { return state_; }
-    bool is_handshake_complete() const { return state_ == TLSState::HANDSHAKE_DONE; }
+    TLS12State get_state() const { return state_machine_.get_state(); }
+    bool is_handshake_complete() const { return state_machine_.get_state() == TLS12State::HANDSHAKE_COMPLETE; }
     
     // Reset analyzer state
     void reset();
 
 private:
-
     // Process a complete TLS record
-    void handle_record(ReassemblyDirection dir, TLSContentType type, 
+    void handle_record(Direction dir, TLSContentType type, 
                       const std::vector<uint8_t>& fragment);
     
     // Handle specific message types
-    void handle_handshake(ReassemblyDirection dir, const std::vector<uint8_t>& data);
-    void handle_alert(ReassemblyDirection dir, const std::vector<uint8_t>& data);
-    void handle_change_cipher_spec(ReassemblyDirection dir);
+    void handle_handshake(Direction dir, const std::vector<uint8_t>& data);
+    void handle_alert(Direction dir, const std::vector<uint8_t>& data);
+    void handle_change_cipher_spec(Direction dir);
     
-    // Update state machine
-    void update_state(TLSState new_state);
-
     ConnectionKey key_;
-    TLSState state_ = TLSState::INIT;
-    TLSBuffer client_buffer_;
-    TLSBuffer server_buffer_;
-    Log& tls_log_ = LogManager::get_instance().get_registered_log("tls.log");;
+    TLS12StateMachine state_machine_;
+    TLSRecorder client_buffer_;
+    TLSRecorder server_buffer_;
+    Log& tls_log_ = LogManager::get_instance().get_registered_log("tls.log");
 };
 
 #endif // TLS_ANALYZER_HPP

@@ -22,11 +22,7 @@ std::string PacketLogEntry::format() const {
 
     // Payload
     if (pkey_.payload_len) oss << std::endl;
-    for (size_t i = 0; i < std::min(pkey_.payload_len, size_t(128)); ++i) {
-        if (i > 0 && i % 32 == 0) oss << std::endl;
-        else if (i > 0 && i % 16 == 0) oss << " ";
-        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(pkey_.payload[i]) << " ";
-    }
-
+    oss << get_formatted_buffer(pkey_.payload, pkey_.payload_len);
     return oss.str();
 }
+

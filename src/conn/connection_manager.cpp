@@ -1,6 +1,5 @@
 #include "conn/connection_manager.hpp"
 #include "conn/connection.hpp"
-#include "definations/reassembly_def.hpp"
 #include "reassm/analyzer_registry.hpp"
 #include "tls/tls_analyzer.hpp"
 #include <netinet/tcp.h>
@@ -46,8 +45,8 @@ void ConnectionManager::process_packet(const ConnectionKey& key, const PacketKey
 
     // Check if connection should be marked for cleanup
     if ((pkey.tcp->th_flags & (TH_FIN | TH_RST)) || 
-        (conn.get_client_state() == tcp_state::closed && conn.get_server_state() == tcp_state::closed) ||
-        (conn.get_client_state() == tcp_state::time_wait || conn.get_server_state() == tcp_state::time_wait)) {
+        (conn.get_client_state() == TCPState::CLOSED && conn.get_server_state() == TCPState::CLOSED) ||
+        (conn.get_client_state() == TCPState::TIME_WAIT || conn.get_server_state() == TCPState::TIME_WAIT)) {
         mark_for_cleanup(key);
     }
 }

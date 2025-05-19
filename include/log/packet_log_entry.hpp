@@ -2,7 +2,7 @@
 #define PACKET_LOG_ENTRY_HPP
 
 #include "log/log_entry.hpp"
-#include "definations/packet_key.hpp"
+#include "definitions/packet_key.hpp"
 #include "conn/connection_key.hpp"
 
 class PacketLogEntry : public LogEntry {

@@ -2,8 +2,7 @@
 #include <ctime>
 
 UTCOffset* UTCOffset::get_instance() {
-    if (!instance_)
-        instance_ = new UTCOffset();
+    if (!instance_) instance_ = new UTCOffset();
     return instance_;
 }
 

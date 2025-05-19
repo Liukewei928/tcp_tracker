@@ -8,7 +8,7 @@
 #include <atomic>
 #include <vector>
 #include "conn/connection.hpp"
-#include "definations/packet_key.hpp"
+#include "definitions/packet_key.hpp"
 #include "log/log.hpp"
 
 class ConnectionManager {

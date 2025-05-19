@@ -15,7 +15,7 @@ public:
     void remove_analyzer(const std::shared_ptr<IProtocolAnalyzer>& analyzer);
        
     // Notify all analyzers of new data
-    void notify_data(ReassemblyDirection dir, const uint8_t* data, size_t len);
+    void notify_data(Direction dir, const uint8_t* data, size_t len);
 
     // Notify connection events
     void notify_reset();

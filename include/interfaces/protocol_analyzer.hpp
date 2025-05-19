@@ -1,7 +1,7 @@
 #ifndef PROTOCOL_ANALYZER_HPP
 #define PROTOCOL_ANALYZER_HPP
 
-#include "definations/reassembly_def.hpp"
+#include "definitions/direction.hpp"
 #include <cstdint>
 #include <cstddef>
 
@@ -10,7 +10,7 @@ public:
     virtual ~IProtocolAnalyzer() = default;
     
     // Process reassembled data
-    virtual void on_data(ReassemblyDirection dir, 
+    virtual void on_data(Direction dir, 
                         const uint8_t* data, 
                         size_t len) = 0;
 

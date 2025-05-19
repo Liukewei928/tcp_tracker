@@ -13,7 +13,7 @@ void ProtocolHandler::remove_analyzer(const std::shared_ptr<IProtocolAnalyzer>& 
     );
 }
 
-void ProtocolHandler::notify_data(ReassemblyDirection dir, const uint8_t* data, size_t len) {
+void ProtocolHandler::notify_data(Direction dir, const uint8_t* data, size_t len) {
     for (const auto& analyzer : analyzers_) {
         analyzer->on_data(dir, data, len);
     }

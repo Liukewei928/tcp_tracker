@@ -3,7 +3,7 @@
 
 #include <pcap.h>
 #include "conn/connection_manager.hpp"
-#include "definations/packet_key.hpp"
+#include "definitions/packet_key.hpp"
 #include "log/log_manager.hpp"
 
 class PacketProcessor {

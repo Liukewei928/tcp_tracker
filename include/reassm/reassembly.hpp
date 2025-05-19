@@ -1,7 +1,7 @@
 #ifndef TCP_REASSEMBLY_HPP
 #define TCP_REASSEMBLY_HPP
 
-#include "definations/reassembly_def.hpp"
+#include "definitions/reassm_event.hpp"
 #include "conn/connection_key.hpp"
 #include "log/log_manager.hpp"
 #include "interfaces/protocol_analyzer.hpp"
@@ -23,8 +23,7 @@ inline bool seq_ge(uint32_t seq1, uint32_t seq2) {
 
 class Reassembly {
 public:
-    Reassembly(const ConnectionKey& key, ReassemblyDirection dir);
-
+    Reassembly(const ConnectionKey& key, Direction dir);
     ~Reassembly();
 
     // Process an incoming TCP segment's payload for this direction
@@ -56,10 +55,10 @@ public:
 
 private:
     void deliver_contiguous();
-    void log_event(ReassemblyEventType type, uint32_t seq = 0, size_t len = 0);
+    void log_event(ReassmEvent type, uint32_t seq = 0, size_t len = 0);
 
     ConnectionKey key_;
-    ReassemblyDirection direction_;
+    Direction direction_;
     ProtocolHandler protocol_handler_;
     Log& reassm_log_ = LogManager::get_instance().get_registered_log("reassm.log");
 
